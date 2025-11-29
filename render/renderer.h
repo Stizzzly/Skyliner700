@@ -4,6 +4,7 @@
 #define RENDERER_H
 
 #include <windows.h>
+#include <d3d9.h>
 
 // Инициализация рендерера (привязка к окну)
 int Renderer_Init(HWND hWnd);
@@ -28,5 +29,8 @@ int Renderer_CreateMesh(void* vertices, int vertexCount, int vertexStride, DWORD
 
 // Отрисовка текущего меша
 void Renderer_RenderMesh();
+
+// Доступ к устройству для внутренних модулей
+IDirect3DDevice9* GetD3D9Device(void);
 
 #endif

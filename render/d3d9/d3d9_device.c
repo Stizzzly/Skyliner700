@@ -1,18 +1,20 @@
 // d3d9_device.c — инициализация устройства, очистка, вывод кадра
 
 #include <d3d9.h>
-#include <d3dx9.h>
-#include "../renderer.h"
+#include <stdio.h>
+#include "renderer.h"
 
 #pragma comment(lib, "d3d9.lib")
-#pragma comment(lib, "d3dx9.lib")
 
 static IDirect3D9*       g_pD3D = NULL;
 static IDirect3DDevice9* g_pd3dDevice = NULL;
 
 int D3D9_Init(HWND hWnd) {
     g_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
-    if (!g_pD3D) return 0;
+    if (!g_pD3D) {
+        FILE* __f = fopen("C:\\Users\\ADMIN\\CLionProjects\\Skyliner700\\debug_init.log","a"); if(__f){ fprintf(__f, "Direct3DCreate9 failed\n"); fclose(__f); }
+        return 0;
+    }
 
     D3DPRESENT_PARAMETERS d3dpp = {0};
     d3dpp.Windowed               = TRUE;
@@ -22,7 +24,7 @@ int D3D9_Init(HWND hWnd) {
     d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
     d3dpp.PresentationInterval   = D3DPRESENT_INTERVAL_IMMEDIATE;
 
-    HRESULT hr = g_pD3D->CreateDevice(
+    HRESULT hr = g_pD3D->lpVtbl->CreateDevice(g_pD3D,
         D3DADAPTER_DEFAULT,
         D3DDEVTYPE_HAL,
         hWnd,
@@ -31,31 +33,34 @@ int D3D9_Init(HWND hWnd) {
         &g_pd3dDevice
     );
 
-    if (FAILED(hr)) return 0;
+    if (FAILED(hr)) {
+        FILE* __f = fopen("C:\\Users\\ADMIN\\CLionProjects\\Skyliner700\\debug_init.log","a"); if(__f){ fprintf(__f, "CreateDevice failed: 0x%08x\n", (unsigned)hr); fclose(__f); }
+        return 0;
+    }
 
-    g_pd3dDevice->SetRenderState(D3DRS_LIGHTING, FALSE);
-    g_pd3dDevice->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
-    g_pd3dDevice->SetRenderState(D3DRS_ZENABLE, TRUE);
+    g_pd3dDevice->lpVtbl->SetRenderState(g_pd3dDevice, D3DRS_LIGHTING, FALSE);
+    g_pd3dDevice->lpVtbl->SetRenderState(g_pd3dDevice, D3DRS_CULLMODE, D3DCULL_NONE);
+    g_pd3dDevice->lpVtbl->SetRenderState(g_pd3dDevice, D3DRS_ZENABLE, TRUE);
 
     return 1;
 }
 
 void D3D9_Shutdown() {
-    if (g_pd3dDevice) { g_pd3dDevice->Release(); g_pd3dDevice = NULL; }
-    if (g_pD3D)       { g_pD3D->Release();       g_pD3D = NULL; }
+    if (g_pd3dDevice) { g_pd3dDevice->lpVtbl->Release(g_pd3dDevice); g_pd3dDevice = NULL; }
+    if (g_pD3D)       { g_pD3D->lpVtbl->Release(g_pD3D);       g_pD3D = NULL; }
 }
 
 void D3D9_BeginFrame() {
     if (!g_pd3dDevice) return;
-    g_pd3dDevice->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
+    g_pd3dDevice->lpVtbl->Clear(g_pd3dDevice, 0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
                         D3DCOLOR_XRGB(135, 206, 235), 1.0f, 0);
-    g_pd3dDevice->BeginScene();
+    g_pd3dDevice->lpVtbl->BeginScene(g_pd3dDevice);
 }
 
 void D3D9_EndFrame() {
     if (!g_pd3dDevice) return;
-    g_pd3dDevice->EndScene();
-    g_pd3dDevice->Present(NULL, NULL, NULL, NULL);
+    g_pd3dDevice->lpVtbl->EndScene(g_pd3dDevice);
+    g_pd3dDevice->lpVtbl->Present(g_pd3dDevice, NULL, NULL, NULL, NULL);
 }
 
 // Экспортируем функции через интерфейс renderer.h

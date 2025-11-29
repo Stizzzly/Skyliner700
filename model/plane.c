@@ -1,13 +1,14 @@
 // plane.c — данные модели
 
 #include <d3d9.h>
+#include "plane.h"
 
 typedef struct {
     float x, y, z;
     DWORD color;
 } Vertex;
 
-Vertex g_PlaneVertices[] = {
+static Vertex g_PlaneVertices[] = {
     // Фюзеляж
     { -0.5f,  0.0f,  0.0f,  D3DCOLOR_XRGB(200, 200, 200) },
     {  0.5f,  0.0f,  0.0f,  D3DCOLOR_XRGB(200, 200, 200) },
@@ -38,7 +39,7 @@ Vertex g_PlaneVertices[] = {
 #define PLANE_FVF (D3DFVF_XYZ | D3DFVF_DIFFUSE)
 
 // Геттеры для main.c
-Vertex* GetPlaneVertices() { return g_PlaneVertices; }
+void* GetPlaneVertices() { return g_PlaneVertices; }
 int GetPlaneVertexCount() { return PLANE_VERTEX_COUNT; }
 int GetPlaneVertexStride() { return PLANE_VERTEX_STRIDE; }
 DWORD GetPlaneFVF() { return PLANE_FVF; }

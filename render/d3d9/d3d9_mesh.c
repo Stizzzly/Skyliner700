@@ -2,7 +2,7 @@
 
 #include <d3d9.h>
 #include <string.h>
-#include "../renderer.h"
+#include "renderer.h"
 
 extern IDirect3DDevice9* GetD3D9Device();
 
@@ -19,8 +19,8 @@ int D3D9_CreateMesh(void* vertices, int vertexCount, int vertexStride, DWORD fvf
     g_vertexStride = vertexStride;
     g_fvf = fvf;
 
-    if (FAILED(device->CreateVertexBuffer(
-        vertexCount * vertexStride,
+    if (FAILED(device->lpVtbl->CreateVertexBuffer(device,
+        (UINT)(vertexCount * vertexStride),
         0,
         fvf,
         D3DPOOL_MANAGED,
@@ -30,9 +30,9 @@ int D3D9_CreateMesh(void* vertices, int vertexCount, int vertexStride, DWORD fvf
     }
 
     void* pVertices;
-    if (FAILED(g_pVB->Lock(0, 0, (void**)&pVertices, 0))) return 0;
-    memcpy(pVertices, vertices, vertexCount * vertexStride);
-    g_pVB->Unlock();
+    if (FAILED(g_pVB->lpVtbl->Lock(g_pVB, 0, 0, (void**)&pVertices, 0))) return 0;
+    memcpy(pVertices, vertices, (size_t)vertexCount * (size_t)vertexStride);
+    g_pVB->lpVtbl->Unlock(g_pVB);
 
     return 1;
 }
@@ -41,10 +41,11 @@ void D3D9_RenderMesh() {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device || !g_pVB) return;
 
-    device->SetStreamSource(0, g_pVB, 0, g_vertexStride);
-    device->SetFVF(g_fvf);
-    device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, g_vertexCount / 3);
+    device->lpVtbl->SetStreamSource(device, 0, g_pVB, 0, (UINT)g_vertexStride);
+    device->lpVtbl->SetFVF(device, g_fvf);
+    device->lpVtbl->DrawPrimitive(device, D3DPT_TRIANGLELIST, 0, g_vertexCount / 3);
 }
+
 
 // Экспортируем через интерфейс
 int Renderer_CreateMesh(void* vertices, int vertexCount, int vertexStride, DWORD fvf) {

@@ -1,8 +1,8 @@
 // d3d9_matrix.c — работа с матрицами мира и камеры
 
 #include <d3d9.h>
-#include <d3dx9.h>
-#include "../renderer.h"
+#include "d3dx9_compat.h"
+#include "renderer.h"
 
 extern IDirect3DDevice9* GetD3D9Device();
 
@@ -10,30 +10,31 @@ void D3D9_SetWorldMatrix(float x, float y, float z, float rotY) {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
 
-    D3DXMATRIX matWorld, matRotate, matTranslate;
+    D3DXMATRIX matWorld, matRotate, matTranslate, tmp;
     D3DXMatrixRotationY(&matRotate, rotY);
     D3DXMatrixTranslation(&matTranslate, x, y, z);
-    matWorld = matRotate * matTranslate;
+    D3DXMatrixMultiply(&tmp, &matRotate, &matTranslate);
+    matWorld = tmp;
 
-    device->SetTransform(D3DTS_WORLD, &matWorld);
+    device->lpVtbl->SetTransform(device, D3DTS_WORLD, &matWorld);
 }
 
 void D3D9_SetupCamera() {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
 
-    D3DXVECTOR3 eye(0.0f, 3.0f, -7.0f);
-    D3DXVECTOR3 at(0.0f, 1.0f, 0.0f);
-    D3DXVECTOR3 up(0.0f, 1.0f, 0.0f);
+    D3DXVECTOR3 eye = {0.0f, 3.0f, -7.0f};
+    D3DXVECTOR3 at  = {0.0f, 1.0f,  0.0f};
+    D3DXVECTOR3 up  = {0.0f, 1.0f,  0.0f};
 
     D3DXMATRIX matView;
     D3DXMatrixLookAtLH(&matView, &eye, &at, &up);
-    device->SetTransform(D3DTS_VIEW, &matView);
+    device->lpVtbl->SetTransform(device, D3DTS_VIEW, &matView);
 
     D3DXMATRIX matProj;
     float aspect = 800.0f / 600.0f; // TODO: вынести в конфиг
-    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(60), aspect, 0.1f, 100.0f);
-    device->SetTransform(D3DTS_PROJECTION, &matProj);
+    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(60.0f), aspect, 0.1f, 100.0f);
+    device->lpVtbl->SetTransform(device, D3DTS_PROJECTION, &matProj);
 }
 
 // Экспортируем через интерфейс
