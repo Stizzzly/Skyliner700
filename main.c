@@ -8,6 +8,7 @@
 #include "render/renderer.h"
 #include "model/plane.h"
 #include "game/flight.h"
+#include "game/flight_input.h"
 #include "game/camera.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -42,7 +43,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         DWORD now = GetTickCount();
         float deltaTime = (now - previousTime) * 0.001f;
         previousTime = now;
-        Flight_Update(deltaTime);
+        FlightInput input;
+        Flight_ReadKeyboardInput(&input);
+        Flight_Step(&input, deltaTime);
         const FlightState* flight = Flight_GetState();
         Camera_Update(deltaTime, flight);
         Renderer_BeginFrame();

@@ -23,35 +23,9 @@ extern IDirect3DDevice9* GetD3D9Device(void);
 extern IDirect3DBaseTexture9* GetTerrainGrassTexture(void);
 extern IDirect3DBaseTexture9* GetRunwayTexture(void);
 
-static float Clamp(float value, float minimum, float maximum) {
-    if (value < minimum) return minimum;
-    if (value > maximum) return maximum;
-    return value;
-}
-
-float Terrain_GetHeight(float x, float z) {
-    const float hills = sinf(x * 0.012f) * cosf(z * 0.011f) * 17.0f
-                      + sinf((x + z) * 0.0065f) * 8.0f;
-    const float airportDistance = fmaxf(fabsf(x) - 100.0f, fabsf(z) - 360.0f);
-    const float hillBlend = Clamp(airportDistance / 90.0f, 0.0f, 1.0f);
-    return hills * hillBlend;
-}
-
-int Terrain_IsRunway(float x, float z) {
-    return fabsf(x) <= 15.0f && fabsf(z) <= 300.0f;
-}
-
-float Terrain_GetSurfaceHeight(float x, float z) {
-    /* The runway and apron are drawn slightly above the terrain to avoid
-       z-fighting. Collision must use that same visible surface. */
-    if (Terrain_IsRunway(x, z)) return 0.055f;
-    if (x >= 24.0f && x <= 95.0f && z >= -65.0f && z <= 30.0f) return 0.035f;
-    return Terrain_GetHeight(x, z);
-}
-
 static TerrainVertex MakeTerrainVertex(float x, float z) {
     const float height = Terrain_GetHeight(x, z);
-    const float tint = Clamp((height + 26.0f) / 52.0f, 0.0f, 1.0f);
+    const float tint = fmaxf(0.0f, fminf(1.0f, (height + 26.0f) / 52.0f));
     TerrainVertex vertex;
     vertex.x = x; vertex.y = height; vertex.z = z;
     vertex.color = D3DCOLOR_XRGB((int)(172.0f + tint * 45.0f),

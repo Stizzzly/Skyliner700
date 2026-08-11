@@ -11,6 +11,8 @@ set(SKYLINER_SOURCES
         main.c
         game/camera.c
         game/flight.c
+        game/flight_input.c
+        world/terrain.c
         core/window.c
         model/plane.c
         render/d3d9/d3d9_device.c
@@ -45,4 +47,12 @@ if (WIN32)
 
     # Link libraries (psapi нужен для GetProcessMemoryInfo)
     target_link_libraries(${PROJECT_NAME} PRIVATE d3d9 kernel32 user32 gdi32 psapi)
+endif()
+
+include(CTest)
+if (BUILD_TESTING)
+    add_executable(flight_physics_tests tests/flight_physics_tests.c game/flight.c world/terrain.c)
+    target_include_directories(flight_physics_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+    target_link_libraries(flight_physics_tests PRIVATE m)
+    add_test(NAME flight_physics COMMAND flight_physics_tests)
 endif()
