@@ -12,6 +12,12 @@
 #include "game/flight_scenario.h"
 #include "game/camera.h"
 
+typedef enum {
+    GAME_MAIN_MENU,
+    GAME_PLAYING,
+    GAME_PAUSED
+} GameScreen;
+
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Open console for diagnostics
     AllocConsole();
@@ -41,21 +47,64 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     int frameCount = 0;
     DWORD fpsLast = GetTickCount();
     DWORD previousTime = GetTickCount();
-    while (Window_IsRunning()) {
+    GameScreen screen = GAME_MAIN_MENU;
+    int menuSelection = 0;
+    int quitRequested = 0;
+    while (Window_IsRunning() && !quitRequested) {
         Window_ProcessMessages();
+        if (!Window_IsRunning()) break;
         DWORD now = GetTickCount();
         float deltaTime = (now - previousTime) * 0.001f;
         previousTime = now;
-        FlightInput input;
+        FlightInput input = {0};
         Flight_ReadKeyboardInput(&input);
-        if (Flight_KeyPressed(VK_F5)) FlightScenario_Start(&scenario);
-        if (Flight_KeyPressed(VK_F6)) scenario.telemetryEnabled = !scenario.telemetryEnabled;
-        if (input.reset && FlightScenario_IsActive(&scenario)) FlightScenario_Cancel(&scenario);
-        if (FlightScenario_IsActive(&scenario)) FlightScenario_BuildInput(&scenario, Flight_GetState(), &input);
-        Flight_Step(&input, deltaTime);
+
+        if (screen == GAME_PLAYING) {
+            if (Flight_KeyPressed(VK_ESCAPE)) {
+                screen = GAME_PAUSED;
+                menuSelection = 0;
+            } else {
+                if (Flight_KeyPressed(VK_F5)) FlightScenario_Start(&scenario);
+                if (Flight_KeyPressed(VK_F6)) scenario.telemetryEnabled = !scenario.telemetryEnabled;
+                if (input.reset && FlightScenario_IsActive(&scenario)) FlightScenario_Cancel(&scenario);
+                if (FlightScenario_IsActive(&scenario)) FlightScenario_BuildInput(&scenario, Flight_GetState(), &input);
+                Flight_Step(&input, deltaTime);
+                FlightScenario_Observe(&scenario, Flight_GetState(), deltaTime);
+                Camera_Update(deltaTime, Flight_GetState());
+            }
+        } else {
+            const int itemCount = screen == GAME_PAUSED ? 3 : 2;
+            if (Flight_KeyPressed(VK_UP)) menuSelection = (menuSelection + itemCount - 1) % itemCount;
+            if (Flight_KeyPressed(VK_DOWN)) menuSelection = (menuSelection + 1) % itemCount;
+            if (screen == GAME_PAUSED && Flight_KeyPressed(VK_ESCAPE)) {
+                screen = GAME_PLAYING;
+            } else if (Flight_KeyPressed(VK_RETURN)) {
+                if (screen == GAME_MAIN_MENU) {
+                    if (menuSelection == 0) {
+                        Flight_Reset();
+                        FlightScenario_Cancel(&scenario);
+                        scenario.telemetryEnabled = 0;
+                        Camera_Init();
+                        screen = GAME_PLAYING;
+                    } else {
+                        quitRequested = 1;
+                    }
+                } else if (menuSelection == 0) {
+                    screen = GAME_PLAYING;
+                } else if (menuSelection == 1) {
+                    Flight_Reset();
+                    FlightScenario_Cancel(&scenario);
+                    scenario.telemetryEnabled = 0;
+                    Camera_Init();
+                    menuSelection = 0;
+                    screen = GAME_MAIN_MENU;
+                } else {
+                    quitRequested = 1;
+                }
+            }
+        }
+
         const FlightState* flight = Flight_GetState();
-        FlightScenario_Observe(&scenario, flight, deltaTime);
-        Camera_Update(deltaTime, flight);
         Renderer_BeginFrame();
         Renderer_RenderSky();
         Renderer_RenderTerrain();
@@ -67,12 +116,16 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Renderer_RenderMesh();
         float heading = fmodf(flight->yaw * 57.2957795f, 360.0f);
         if (heading < 0.0f) heading += 360.0f;
-        Renderer_RenderHud(flight->speed * 3.6f,
-                           flight->altitude,
-                           flight->pitch * 57.2957795f, flight->roll * 57.2957795f, heading);
-        Renderer_RenderDevHud(FlightScenario_Status(&scenario), scenario.telemetryEnabled,
-                              flight->throttle, flight->verticalSpeed, flight->lift, flight->drag,
-                              flight->onGround, input.pitch, input.roll, input.yaw);
+        if (screen == GAME_PLAYING) {
+            Renderer_RenderHud(flight->speed * 3.6f,
+                               flight->altitude,
+                               flight->pitch * 57.2957795f, flight->roll * 57.2957795f, heading);
+            Renderer_RenderDevHud(FlightScenario_Status(&scenario), scenario.telemetryEnabled,
+                                  flight->throttle, flight->verticalSpeed, flight->lift, flight->drag,
+                                  flight->onGround, input.pitch, input.roll, input.yaw);
+        } else {
+            Renderer_RenderMenu(screen == GAME_PAUSED, menuSelection);
+        }
         Renderer_EndFrame();
 
         frameCount++;

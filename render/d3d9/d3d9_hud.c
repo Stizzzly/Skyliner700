@@ -40,6 +40,7 @@ static const unsigned char* GlyphFor(char character) {
     static const unsigned char t[7] = {31,4,4,4,4,4,4};
     static const unsigned char u[7] = {17,17,17,17,17,17,14};
     static const unsigned char v[7] = {17,17,17,17,17,10,4};
+    static const unsigned char x[7] = {17,17,10,4,10,17,17};
     static const unsigned char y[7] = {17,17,10,4,4,4,4};
     if (character >= '0' && character <= '9') return g_digits[character - '0'];
     switch (character) {
@@ -49,7 +50,7 @@ static const unsigned char* GlyphFor(char character) {
         case 'H': return h; case 'I': return i; case 'K': return k; case 'L': return l;
         case 'M': return m; case 'N': return n; case 'O': return o; case 'P': return p;
         case 'R': return r; case 'S': return s; case 'T': return t; case 'U': return u;
-        case 'V': return v; case 'Y': return y; default: return blank;
+        case 'V': return v; case 'X': return x; case 'Y': return y; default: return blank;
     }
 }
 
@@ -63,8 +64,7 @@ static void AddQuad(HudVertex* vertices, int* count, float x0, float y0, float x
     vertices[(*count)++] = (HudVertex){x1,y0,0.0f,1.0f,color};
 }
 
-static void AddText(HudVertex* vertices, int* count, float x, float y, const char* text, DWORD color) {
-    const float pixel = 2.0f;
+static void AddTextScaled(HudVertex* vertices, int* count, float x, float y, const char* text, DWORD color, float pixel) {
     for (int character = 0; text[character] != '\0'; ++character) {
         const unsigned char* glyph = GlyphFor(text[character]);
         for (int row = 0; row < 7; ++row) {
@@ -75,8 +75,12 @@ static void AddText(HudVertex* vertices, int* count, float x, float y, const cha
                 }
             }
         }
-        x += 12.0f;
+        x += pixel * 6.0f;
     }
+}
+
+static void AddText(HudVertex* vertices, int* count, float x, float y, const char* text, DWORD color) {
+    AddTextScaled(vertices, count, x, y, text, color, 2.0f);
 }
 
 void D3D9_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
@@ -104,6 +108,8 @@ void D3D9_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
     device->lpVtbl->SetFVF(device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
     device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);
     device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);
     device->lpVtbl->SetRenderState(device,D3DRS_ZENABLE,FALSE);
     device->lpVtbl->SetRenderState(device,D3DRS_ZWRITEENABLE,FALSE);
     device->lpVtbl->SetRenderState(device,D3DRS_FOGENABLE,FALSE);
@@ -148,6 +154,71 @@ void D3D9_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
     device->lpVtbl->SetFVF(device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
     device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);
     device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);
+    device->lpVtbl->SetRenderState(device,D3DRS_ZENABLE,FALSE);
+    device->lpVtbl->SetRenderState(device,D3DRS_ZWRITEENABLE,FALSE);
+    device->lpVtbl->SetRenderState(device,D3DRS_FOGENABLE,FALSE);
+    device->lpVtbl->SetRenderState(device,D3DRS_ALPHABLENDENABLE,TRUE);
+    device->lpVtbl->SetRenderState(device,D3DRS_SRCBLEND,D3DBLEND_SRCALPHA);
+    device->lpVtbl->SetRenderState(device,D3DRS_DESTBLEND,D3DBLEND_INVSRCALPHA);
+    device->lpVtbl->DrawPrimitiveUP(device,D3DPT_TRIANGLELIST,count / 3,vertices,sizeof(HudVertex));
+    device->lpVtbl->SetRenderState(device,D3DRS_ALPHABLENDENABLE,FALSE);
+    device->lpVtbl->SetRenderState(device,D3DRS_ZENABLE,TRUE);
+    device->lpVtbl->SetRenderState(device,D3DRS_ZWRITEENABLE,TRUE);
+}
+
+static float CenteredTextX(float screenWidth, const char* text, float pixel) {
+    return (screenWidth - (float)strlen(text) * pixel * 6.0f) * 0.5f;
+}
+
+void D3D9_RenderMenu(int paused, int selection) {
+    IDirect3DDevice9* device = GetD3D9Device();
+    HudVertex vertices[HUD_MAX_VERTICES];
+    D3DVIEWPORT9 viewport;
+    const char* title = paused ? "PAUSED" : "SKYLINER 700";
+    const char* items[3] = {"RESUME", "RETURN MENU", "EXIT GAME"};
+    const int itemCount = paused ? 3 : 2;
+    const DWORD dim = D3DCOLOR_ARGB(115, 0, 0, 0);
+    const DWORD panel = D3DCOLOR_ARGB(225, 7, 20, 34);
+    const DWORD border = D3DCOLOR_ARGB(255, 80, 184, 230);
+    const DWORD regular = D3DCOLOR_ARGB(230, 220, 239, 250);
+    const DWORD chosen = D3DCOLOR_ARGB(255, 255, 231, 122);
+    const float panelWidth = 430.0f;
+    const float panelHeight = paused ? 290.0f : 245.0f;
+    float panelX, panelY, itemY;
+    int count = 0;
+    if (!device || FAILED(device->lpVtbl->GetViewport(device, &viewport))) return;
+    if (!paused) { items[0] = "START FLIGHT"; items[1] = "EXIT GAME"; }
+    if (selection < 0) selection = 0;
+    if (selection >= itemCount) selection = itemCount - 1;
+    panelX = ((float)viewport.Width - panelWidth) * 0.5f;
+    panelY = ((float)viewport.Height - panelHeight) * 0.5f;
+
+    AddQuad(vertices, &count, 0.0f, 0.0f, (float)viewport.Width, (float)viewport.Height, dim);
+    AddQuad(vertices, &count, panelX, panelY, panelX + panelWidth, panelY + panelHeight, panel);
+    AddQuad(vertices, &count, panelX, panelY, panelX + panelWidth, panelY + 3.0f, border);
+    AddTextScaled(vertices, &count, CenteredTextX((float)viewport.Width, title, 4.0f),
+                  panelY + 35.0f, title, border, 4.0f);
+    itemY = panelY + 120.0f;
+    for (int item = 0; item < itemCount; ++item) {
+        const DWORD color = item == selection ? chosen : regular;
+        if (item == selection) {
+            AddQuad(vertices, &count, panelX + 42.0f, itemY - 7.0f,
+                    panelX + panelWidth - 42.0f, itemY + 26.0f,
+                    D3DCOLOR_ARGB(130, 35, 87, 114));
+        }
+        AddTextScaled(vertices, &count, CenteredTextX((float)viewport.Width, items[item], 3.0f),
+                      itemY, items[item], color, 3.0f);
+        itemY += 48.0f;
+    }
+
+    device->lpVtbl->SetTexture(device, 0, NULL);
+    device->lpVtbl->SetFVF(device, D3DFVF_XYZRHW | D3DFVF_DIFFUSE);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLOROP,D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_COLORARG1,D3DTA_DIFFUSE);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAOP,D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device,0,D3DTSS_ALPHAARG1,D3DTA_DIFFUSE);
     device->lpVtbl->SetRenderState(device,D3DRS_ZENABLE,FALSE);
     device->lpVtbl->SetRenderState(device,D3DRS_ZWRITEENABLE,FALSE);
     device->lpVtbl->SetRenderState(device,D3DRS_FOGENABLE,FALSE);

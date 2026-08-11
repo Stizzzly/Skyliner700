@@ -27,6 +27,7 @@ void D3D9_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
 void D3D9_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
                        float throttle, float verticalSpeed, float lift, float drag,
                        int onGround, float pitchInput, float rollInput, float yawInput);
+void D3D9_RenderMenu(int paused, int selection);
 
 static int D3D9_LoadAssetTexture(const char* assetName, int width, int height,
                                  IDirect3DTexture9** texture) {
@@ -318,3 +319,4 @@ void Renderer_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
     D3D9_RenderDevHud(scenarioStatus, telemetryEnabled, throttle, verticalSpeed, lift, drag,
                       onGround, pitchInput, rollInput, yawInput);
 }
+void Renderer_RenderMenu(int paused, int selection) { D3D9_RenderMenu(paused, selection); }

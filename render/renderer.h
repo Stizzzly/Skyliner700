@@ -26,6 +26,8 @@ void Renderer_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees
 void Renderer_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
                            float throttle, float verticalSpeed, float lift, float drag,
                            int onGround, float pitchInput, float rollInput, float yawInput);
+/* paused=0 draws the main menu; paused=1 draws the in-flight pause menu. */
+void Renderer_RenderMenu(int paused, int selection);
 
 // Установка матрицы мира (позиция + вращение объекта)
 void Renderer_SetWorldMatrix(float x, float y, float z, float rotY);
