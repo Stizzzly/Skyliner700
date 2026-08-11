@@ -41,6 +41,14 @@ int Terrain_IsRunway(float x, float z) {
     return fabsf(x) <= 15.0f && fabsf(z) <= 300.0f;
 }
 
+float Terrain_GetSurfaceHeight(float x, float z) {
+    /* The runway and apron are drawn slightly above the terrain to avoid
+       z-fighting. Collision must use that same visible surface. */
+    if (Terrain_IsRunway(x, z)) return 0.055f;
+    if (x >= 24.0f && x <= 95.0f && z >= -65.0f && z <= 30.0f) return 0.035f;
+    return Terrain_GetHeight(x, z);
+}
+
 static TerrainVertex MakeTerrainVertex(float x, float z) {
     const float height = Terrain_GetHeight(x, z);
     const float tint = Clamp((height + 26.0f) / 52.0f, 0.0f, 1.0f);

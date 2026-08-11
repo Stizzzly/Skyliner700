@@ -6,6 +6,7 @@ typedef struct {
     float pitch, yaw, roll;
     float speed;
     float throttle;
+    float altitude;
     int onGround;
 } FlightState;
 
