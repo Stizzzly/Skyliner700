@@ -1,69 +1,62 @@
 # Skyliner 700
 
-Небольшой самолётный симулятор на чистом **C** и **Direct3D 9**.  Никакого
-игрового движка, C++, D3DX или шейдеров: рендерер использует fixed-function
-pipeline и рассчитан в том числе на старые видеокарты уровня ATI Radeon Xpress
-200.
+[Русская версия](README.ru.md)
+
+A small flight simulator written in pure **C** with a **Direct3D 9 fixed-function** renderer. It uses no game engine, C++, D3DX, or shaders, and is designed to remain compatible with older DirectX 9 hardware.
 
 ![Language: C](https://img.shields.io/badge/language-C-00599C?logo=c&logoColor=white)
 ![Graphics: Direct3D 9](https://img.shields.io/badge/graphics-Direct3D%209-107C10)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
 
-## Что есть в игре
+## Features
 
-- управляемый самолёт с упрощённой физикой: тяга, подъёмная сила, сваливание,
-  сопротивление, взлёт и посадка;
-- небольшая процедурная карта: холмы, ВПП, рулёжная площадка и low-poly ангары;
-- гражданская ливрея самолёта, облачный sky dome, туман и HUD;
-- камера от третьего лица и свободная камера;
-- главное меню и пауза;
-- встроенный тестовый полёт (`F5`) и детальная телеметрия (`F6`);
-- отдельные детерминированные CTest-проверки физики без окна и D3D9.
+- Simplified flight model with thrust, lift, drag, stalls, takeoff, landing, and terrain contact
+- Procedural terrain with hills, a runway, taxiway, and low-poly hangars
+- Textured aircraft, sky dome, scrolling clouds, fog, and HUD
+- Third-person chase camera and free camera
+- Main menu, pause menu, automated test flight, and telemetry mode
+- Deterministic CTest flight-physics tests that run without a window or D3D9
 
-## Управление
+## Controls
 
-| Клавиша | Действие |
+| Key | Action |
 | --- | --- |
-| `↑` / `↓` | Тангаж |
-| `←` / `→` | Крен и поворот самолёта |
-| `Shift` / `Ctrl` | Больше / меньше тяги |
-| `Q` / `E` | Рыскание |
-| `R` | Сброс на начало ВПП |
-| `C` | Камера третьего лица / свободная камера |
-| `W` `A` `S` `D`, мышь | Движение и обзор в свободной камере |
-| `Page Up` / `Page Down` | Вверх / вниз в свободной камере |
-| `F5` | Автотест: взлёт, круг и посадка |
-| `F6` | Расширенная телеметрия |
-| `Esc` | Пауза, возврат в меню или выход |
+| `Up` / `Down` | Pitch |
+| `Left` / `Right` | Roll and turn |
+| `Shift` / `Ctrl` | Increase / decrease throttle |
+| `Q` / `E` | Yaw |
+| `R` | Reset to the runway |
+| `C` | Toggle chase and free camera |
+| `W` `A` `S` `D` + mouse | Move and look in free camera |
+| `Page Up` / `Page Down` | Move up / down in free camera |
+| `F5` | Automated takeoff, circuit, and landing test |
+| `F6` | Detailed flight telemetry |
+| `Esc` | Pause menu |
 
-## Скачать и запустить
+## Downloads
 
-В [Releases](../../releases) доступны два ZIP-архива:
+Get the latest build from [Releases](../../releases).
 
-| Архив | Для чего |
+| Package | Target |
 | --- | --- |
-| `Skyliner700-1.0.0-win32-xp.zip` | Windows XP SP2/SP3 и более новые 32-битные Windows |
-| `Skyliner700-1.0.0-win64.zip` | 64-битные Windows |
+| `Skyliner700-1.0.0-win32-xp.zip` | Windows XP SP2/SP3 and later 32-bit Windows |
+| `Skyliner700-1.0.0-win64.zip` | 64-bit Windows |
 
-Распакуйте архив целиком и запускайте `Skyliner700.exe`.  Папка `assets` должна
-оставаться рядом с `.exe`: в ней находятся текстуры самолёта, облаков, травы и
-ВПП.
+Extract the complete archive before running the game. The `assets` directory must stay next to `Skyliner700.exe`.
 
-### Минимальные требования
+## Requirements
 
-- Windows XP SP2/SP3 или новее;
-- DirectX 9.0c-совместимая видеокарта с Shader Model 2.0 и 64 МБ видеопамяти;
-- 512 МБ ОЗУ;
-- экран 1024×768;
-- около 100 МБ свободного места.
+- Windows XP SP2/SP3 or newer
+- DirectX 9.0c-compatible GPU with Shader Model 2.0 and 64 MB VRAM
+- 512 MB RAM
+- 1024×768 display
+- 100 MB free storage
 
-Версия x86 проверена в Windows XP SP2 в VMware. Финальная проверка на реальном
-железе — ноутбук с ATI Radeon Xpress 200.
+The x86 build was validated in a Windows XP SP2 VMware guest. Real Radeon Xpress 200 hardware remains the final performance target.
 
-## Сборка
+## Building
 
-Нужны CMake, Ninja и MinGW из MSYS2. Все команды выполняются из корня
-репозитория.
+Install CMake, Ninja, and MSYS2 MinGW. Run these commands from the repository root.
 
 ### Windows x64 (Clang)
 
@@ -72,7 +65,7 @@ C:\msys64\mingw64\bin\cmake.exe --preset clang-release
 C:\msys64\mingw64\bin\cmake.exe --build --preset clang-release
 ```
 
-Результат: `cmake-build-release\Skyliner700.exe`.
+Output: `cmake-build-release\Skyliner700.exe`.
 
 ### Windows XP x86 (GCC)
 
@@ -82,33 +75,26 @@ C:\msys64\mingw32\bin\cmake.exe --build --preset gcc-x86-xp-release
 C:\msys64\mingw32\bin\ctest.exe --preset gcc-x86-xp-release --output-on-failure
 ```
 
-Результат: `cmake-build-gcc-x86-xp-release\Skyliner700.exe`.
-Сборка создаётся как `pei-i386`, с subsystem версии 5.1, и не требует D3DX.
-Подробности по XP — в [docs/windows-xp.md](docs/windows-xp.md).
+Output: `cmake-build-gcc-x86-xp-release\Skyliner700.exe`. This build targets `pei-i386`, subsystem version 5.1, and has no D3DX dependency. See [Windows XP notes](docs/windows-xp.md) for deployment details.
 
 ## Linux
 
-Игра также должна запускаться через Wine с DXVK: DXVK реализует D3D9 поверх
-Vulkan. Нужны 32-битные библиотеки Wine/DXVK и Vulkan-драйвер для видеокарты.
-Запускайте Windows-версию вместе с папкой `assets`.
+The Windows build should run through Wine with DXVK, which translates D3D9 to Vulkan. Install Wine, DXVK, and the 32-bit Vulkan driver for your GPU, then run the game together with its `assets` directory.
 
 ```bash
 WINEPREFIX="$HOME/.wine-skyliner700" wine Skyliner700.exe
 ```
 
-## Технологии
+## Technology
 
-- C11;
-- Win32 API;
-- Direct3D 9 fixed-function pipeline;
-- CMake + Ninja;
-- CTest для физики полёта.
+- C11
+- Win32 API
+- Direct3D 9 fixed-function pipeline
+- CMake + Ninja
+- CTest
 
-## Лицензия
+## License
 
-Проект распространяется по лицензии [MIT](LICENSE).
+Licensed under the [MIT License](LICENSE).
 
----
-
-Проект находится в активной разработке. Проблемы и предложения можно оставить
-во [вкладке Issues](../../issues).
+Project feedback and bug reports are welcome in [Issues](../../issues).
