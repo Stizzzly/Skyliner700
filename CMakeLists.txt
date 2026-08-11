@@ -9,6 +9,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # once a build directory is created inside the project.
 set(SKYLINER_SOURCES
         main.c
+        game/camera.c
         game/flight.c
         core/window.c
         model/plane.c

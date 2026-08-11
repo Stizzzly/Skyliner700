@@ -7,6 +7,7 @@
 #include "render/renderer.h"
 #include "model/plane.h"
 #include "game/flight.h"
+#include "game/camera.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Open console for diagnostics
@@ -18,6 +19,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!Window_Init(hInstance)) return 1;
     if (!Renderer_Init(Window_GetHWND())) return 1;
     Flight_Init();
+    Camera_Init();
 
     // Загружаем модель
     if (!Renderer_CreateMesh(
@@ -28,9 +30,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     )) {
         return 1;
     }
-
-    // Настройка камеры (один раз)
-    Renderer_SetupCamera();
 
     // Игровой цикл with FPS and resource logging
     int frameCount = 0;
@@ -43,6 +42,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         previousTime = now;
         Flight_Update(deltaTime);
         const FlightState* flight = Flight_GetState();
+        Camera_Update(deltaTime, flight);
         Renderer_BeginFrame();
         Renderer_RenderSky();
         Renderer_RenderTestGround();

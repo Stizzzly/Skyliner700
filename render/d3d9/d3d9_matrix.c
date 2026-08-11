@@ -6,7 +6,8 @@
 
 extern IDirect3DDevice9* GetD3D9Device();
 
-static const D3DXVECTOR3 g_cameraEye = {22.0f, 12.0f, 285.0f};
+static D3DXVECTOR3 g_cameraEye = {0.0f, 6.45f, 238.0f};
+static D3DXVECTOR3 g_cameraAt = {0.0f, 1.65f, 212.0f};
 
 void D3D9_SetWorldMatrix(float x, float y, float z, float rotY) {
     IDirect3DDevice9* device = GetD3D9Device();
@@ -25,12 +26,10 @@ void D3D9_SetupCamera() {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
 
-    // На этапе тестовой ВПП камера смотрит на стартовую позицию самолёта.
-    D3DXVECTOR3 at  = {0.0f, 0.2f, 150.0f};
     D3DXVECTOR3 up  = {0.0f, 1.0f,  0.0f};
 
     D3DXMATRIX matView;
-    D3DXMatrixLookAtLH(&matView, &g_cameraEye, &at, &up);
+    D3DXMatrixLookAtLH(&matView, &g_cameraEye, &g_cameraAt, &up);
     device->lpVtbl->SetTransform(device, D3DTS_VIEW, &matView);
 
     D3DXMATRIX matProj;
@@ -53,6 +52,13 @@ void D3D9_SetAircraftWorldMatrix(float x, float y, float z, float pitch, float y
     device->lpVtbl->SetTransform(device, D3DTS_WORLD, &temporary);
 }
 
+void D3D9_SetCameraLookAt(float eyeX, float eyeY, float eyeZ,
+                           float atX, float atY, float atZ) {
+    g_cameraEye = (D3DXVECTOR3){eyeX, eyeY, eyeZ};
+    g_cameraAt = (D3DXVECTOR3){atX, atY, atZ};
+    D3D9_SetupCamera();
+}
+
 void D3D9_SetSkyWorldMatrix(void) {
     IDirect3DDevice9* device = GetD3D9Device();
     D3DXMATRIX matrix;
@@ -68,6 +74,11 @@ void Renderer_SetWorldMatrix(float x, float y, float z, float rotY) {
 
 void Renderer_SetAircraftWorldMatrix(float x, float y, float z, float pitch, float yaw, float roll) {
     D3D9_SetAircraftWorldMatrix(x, y, z, pitch, yaw, roll);
+}
+
+void Renderer_SetCameraLookAt(float eyeX, float eyeY, float eyeZ,
+                              float atX, float atY, float atZ) {
+    D3D9_SetCameraLookAt(eyeX, eyeY, eyeZ, atX, atY, atZ);
 }
 
 void Renderer_SetupCamera() {

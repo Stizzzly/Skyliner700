@@ -25,6 +25,8 @@ void Renderer_RenderTestGround();
 // Установка матрицы мира (позиция + вращение объекта)
 void Renderer_SetWorldMatrix(float x, float y, float z, float rotY);
 void Renderer_SetAircraftWorldMatrix(float x, float y, float z, float pitch, float yaw, float roll);
+void Renderer_SetCameraLookAt(float eyeX, float eyeY, float eyeZ,
+                              float atX, float atY, float atZ);
 
 // Установка камеры (один раз при старте или при смене режима)
 void Renderer_SetupCamera();
