@@ -21,6 +21,21 @@
       }
     },
     {
+      "name": "base-gcc-mingw32-xp",
+      "hidden": true,
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/cmake-build-${presetName}",
+      "cacheVariables": {
+        "CMAKE_C_COMPILER": "C:/msys64/mingw32/bin/gcc.exe",
+        "CMAKE_MAKE_PROGRAM": "C:/msys64/mingw32/bin/ninja.exe",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+        "CMAKE_EXE_LINKER_FLAGS": "-static-libgcc -Wl,--major-subsystem-version=5,--minor-subsystem-version=1"
+      },
+      "environment": {
+        "PATH": "C:/msys64/mingw32/bin;$penv{PATH}"
+      }
+    },
+    {
       "name": "clang-debug",
       "displayName": "Clang MinGW64 — Debug",
       "description": "Clang 22 + Ninja, отладочная x64-сборка.",
@@ -39,6 +54,17 @@
       "cacheVariables": {
         "CMAKE_BUILD_TYPE": "Release"
       }
+    },
+    {
+      "name": "gcc-x86-xp-release",
+      "displayName": "GCC MinGW32 — Windows XP Release",
+      "description": "x86 Release для Windows XP SP2: MSVCRT и PE subsystem 5.1.",
+      "inherits": "base-gcc-mingw32-xp",
+      "binaryDir": "${sourceDir}/cmake-build-gcc-x86-xp-release",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_C_FLAGS_RELEASE": "-O2 -DNDEBUG -march=i686 -mtune=generic"
+      }
     }
   ],
   "buildPresets": [
@@ -49,12 +75,21 @@
     {
       "name": "clang-release",
       "configurePreset": "clang-release"
+    },
+    {
+      "name": "gcc-x86-xp-release",
+      "configurePreset": "gcc-x86-xp-release"
     }
   ],
   "testPresets": [
     {
       "name": "clang-debug",
       "configurePreset": "clang-debug",
+      "output": { "outputOnFailure": true }
+    },
+    {
+      "name": "gcc-x86-xp-release",
+      "configurePreset": "gcc-x86-xp-release",
       "output": { "outputOnFailure": true }
     }
   ]
