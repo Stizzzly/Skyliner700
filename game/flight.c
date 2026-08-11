@@ -15,6 +15,7 @@
 #define LIFT_SLOPE 4.0f
 #define MIN_AOA -0.30f
 #define MAX_AOA 0.45f
+#define MIN_TURN_SPEED 20.0f
 
 static FlightModel g_playerFlight;
 
@@ -80,6 +81,19 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     forwardZ = -cosf(state->yaw) * cosf(state->pitch);
     forwardSpeed = model->velocityX * forwardX + model->velocityY * forwardY + model->velocityZ * forwardZ;
     airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
+
+    /* A bank tilts the lift vector.  Its horizontal component curves the
+       velocity and the body follows that coordinated turn.  This is what
+       makes Left/Right useful in flight instead of being a visual-only roll. */
+    horizontalSpeed = sqrtf(model->velocityX * model->velocityX + model->velocityZ * model->velocityZ);
+    if (!state->onGround && horizontalSpeed > MIN_TURN_SPEED) {
+        const float bankTurnRate = GRAVITY * tanf(state->roll) / horizontalSpeed;
+        state->yaw += bankTurnRate * deltaTime;
+        forwardX = sinf(state->yaw) * cosf(state->pitch);
+        forwardY = sinf(state->pitch);
+        forwardZ = -cosf(state->yaw) * cosf(state->pitch);
+        forwardSpeed = model->velocityX * forwardX + model->velocityY * forwardY + model->velocityZ * forwardZ;
+    }
     const float thrustFactor = Clamp((ENGINE_FULL_POWER_SPEED - forwardSpeed) / 20.0f, 0.0f, 1.0f);
     const float thrust = ENGINE_ACCELERATION * state->throttle * thrustFactor;
     model->velocityX += forwardX * thrust * deltaTime;
@@ -105,7 +119,15 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
         const float speedRatio = forwardSpeed / CRUISE_SPEED;
         lift = GRAVITY * speedRatio * speedRatio * liftCoefficient * cosf(state->roll);
     }
-    if (!state->onGround || lift > GRAVITY) model->velocityY += (lift - GRAVITY) * deltaTime;
+    if (!state->onGround || lift > GRAVITY) {
+        const float verticalLift = lift * cosf(state->roll);
+        const float lateralLift = lift * sinf(state->roll);
+        const float rightX = cosf(state->yaw);
+        const float rightZ = sinf(state->yaw);
+        model->velocityY += (verticalLift - GRAVITY) * deltaTime;
+        model->velocityX += rightX * lateralLift * deltaTime;
+        model->velocityZ += rightZ * lateralLift * deltaTime;
+    }
 
     airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
     const float dragRate = PARASITIC_DRAG * airspeed + lift * 0.00035f;

@@ -7,6 +7,11 @@ typedef enum {
     FLIGHT_SCENARIO_IDLE,
     FLIGHT_SCENARIO_RUN,
     FLIGHT_SCENARIO_CLIMB,
+    FLIGHT_SCENARIO_CIRCLE,
+    FLIGHT_SCENARIO_RETURN_TURN_OUT,
+    FLIGHT_SCENARIO_RETURN_LEG,
+    FLIGHT_SCENARIO_RETURN_TURN_IN,
+    FLIGHT_SCENARIO_APPROACH,
     FLIGHT_SCENARIO_CRUISE,
     FLIGHT_SCENARIO_DESCENT,
     FLIGHT_SCENARIO_LAND,
@@ -17,6 +22,8 @@ typedef enum {
 typedef struct {
     FlightScenarioPhase phase;
     float phaseTime;
+    float circleStartYaw;
+    int circleCompleted;
     int telemetryEnabled;
     const char* failure;
 } FlightScenario;

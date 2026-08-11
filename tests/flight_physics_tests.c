@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include "game/flight.h"
 #include "game/flight_scenario.h"
+#include "world/terrain.h"
 
 #define DT (1.0f / 120.0f)
 
@@ -77,11 +78,20 @@ int main(void) {
     state = FlightModel_GetState(&model);
     CHECK(fabsf(state->y - levelStart) < 4.0f, "cruise speed with neutral pitch must remain near level");
 
+    SetAirborneAtSpeed(&model, 55.0f, 0.03f);
     input = (FlightInput){ .roll = 1.0f };
-    StepFor(&model, input, 1.0f);
+    StepFor(&model, input, 2.0f);
     state = FlightModel_GetState(&model);
-    CHECK(state->roll > 0.60f, "airborne roll input must bank the aircraft");
+    CHECK(state->roll > 0.70f, "airborne roll input must bank the aircraft");
+    CHECK(state->yaw > 0.30f, "positive bank must turn the aircraft without rudder input");
 
+    SetAirborneAtSpeed(&model, 55.0f, 0.03f);
+    input = (FlightInput){ .roll = -1.0f };
+    StepFor(&model, input, 2.0f);
+    state = FlightModel_GetState(&model);
+    CHECK(state->yaw < -0.30f, "negative bank must turn the aircraft in the opposite direction");
+
+    SetAirborneAtSpeed(&model, 55.0f, 0.03f);
     const float yawBeforeTurn = state->yaw;
     input = (FlightInput){ .yaw = 1.0f };
     StepFor(&model, input, 1.0f);
@@ -100,13 +110,26 @@ int main(void) {
     FlightScenario_Init(&scenario);
     Flight_Init();
     FlightScenario_Start(&scenario);
-    for (int step = 0; step < (int)(100.0f / DT) && FlightScenario_IsActive(&scenario); ++step) {
+    int sawCircle = 0;
+    for (int step = 0; step < (int)(180.0f / DT) && FlightScenario_IsActive(&scenario); ++step) {
         FlightInput scenarioInput;
         FlightScenario_BuildInput(&scenario, Flight_GetState(), &scenarioInput);
         Flight_Step(&scenarioInput, DT);
         FlightScenario_Observe(&scenario, Flight_GetState(), DT);
+        if (scenario.phase == FLIGHT_SCENARIO_CIRCLE) sawCircle = 1;
+    }
+    CHECK(sawCircle, "scripted scenario must enter the banked circle");
+    CHECK(scenario.circleCompleted, "scripted scenario must complete a full circle");
+    if (scenario.phase != FLIGHT_SCENARIO_PASS) {
+        state = Flight_GetState();
+        fprintf(stderr, "Scenario end: phase=%d failure=%s x=%.1f z=%.1f alt=%.1f speed=%.1f yaw=%.2f\n",
+                scenario.phase, scenario.failure ? scenario.failure : "none",
+                state->x, state->z, state->altitude, state->speed, state->yaw);
     }
     CHECK(scenario.phase == FLIGHT_SCENARIO_PASS, "scripted takeoff and landing scenario must pass");
+    state = Flight_GetState();
+    CHECK(state->onGround && Terrain_IsRunway(state->x, state->z),
+          "scripted scenario must stop on the runway");
 
     if (g_failures) return 1;
     printf("flight physics tests passed\n");
