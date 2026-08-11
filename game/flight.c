@@ -10,6 +10,11 @@
 #define MAX_AIRSPEED 90.0f
 #define PARASITIC_DRAG 0.0026f
 #define GRAVITY 9.81f
+#define CRUISE_SPEED 50.0f
+#define LIFT_COEFFICIENT_ZERO_AOA 1.0f
+#define LIFT_SLOPE 4.0f
+#define MIN_AOA -0.30f
+#define MAX_AOA 0.45f
 
 static FlightModel g_playerFlight;
 
@@ -52,6 +57,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     FlightState* state;
     float forwardX, forwardY, forwardZ;
     float forwardSpeed, airspeed, lift = 0.0f;
+    float horizontalSpeed, flightPathAngle, angleOfAttack, liftCoefficient;
     float groundHeight;
     FlightInput noInput = {0};
     if (!model) return;
@@ -80,13 +86,24 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     model->velocityY += forwardY * thrust * deltaTime;
     model->velocityZ += forwardZ * thrust * deltaTime;
 
-    if (forwardSpeed > STALL_SPEED) {
-        /* At roughly 50 m/s a level aircraft produces its weight in lift.
-           Pitch changes the effective angle of attack, so level flight no
-           longer turns into an endless climb and overspeed. */
-        const float speedRatio = forwardSpeed / 50.0f;
-        const float angleFactor = Clamp(1.0f + state->pitch * 2.5f, 0.20f, 2.40f);
-        lift = GRAVITY * speedRatio * speedRatio * angleFactor * cosf(state->roll);
+    /* The wing does not react to the model's pitch alone.  It reacts to the
+       angle between the nose and the velocity vector (angle of attack).  This
+       gives the controls their expected meaning: at the same airspeed, nose
+       up establishes a climbing flight path and nose down establishes a
+       descending one. */
+    horizontalSpeed = sqrtf(model->velocityX * model->velocityX + model->velocityZ * model->velocityZ);
+    flightPathAngle = atan2f(model->velocityY, fmaxf(horizontalSpeed, 0.1f));
+    angleOfAttack = Clamp(state->pitch - flightPathAngle, MIN_AOA, MAX_AOA);
+    liftCoefficient = LIFT_COEFFICIENT_ZERO_AOA + LIFT_SLOPE * angleOfAttack;
+    if (angleOfAttack > 0.30f) {
+        /* A deliberately gentle post-stall falloff.  The game remains
+           controllable, but pulling hard cannot create unlimited lift. */
+        liftCoefficient = 2.20f - (angleOfAttack - 0.30f) * 2.5f;
+    }
+    liftCoefficient = Clamp(liftCoefficient, -0.35f, 2.20f);
+    if (forwardSpeed > STALL_SPEED && liftCoefficient > 0.0f) {
+        const float speedRatio = forwardSpeed / CRUISE_SPEED;
+        lift = GRAVITY * speedRatio * speedRatio * liftCoefficient * cosf(state->roll);
     }
     if (!state->onGround || lift > GRAVITY) model->velocityY += (lift - GRAVITY) * deltaTime;
 
@@ -121,6 +138,8 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     state->verticalSpeed = model->velocityY;
     state->lift = lift;
     state->drag = dragRate * state->speed;
+    state->angleOfAttack = angleOfAttack;
+    state->flightPathAngle = flightPathAngle;
     state->altitude = fmaxf(0.0f, state->y - groundHeight);
 }
 

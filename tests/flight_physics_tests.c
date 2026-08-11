@@ -13,6 +13,16 @@ static void StepFor(FlightModel* model, FlightInput input, float seconds) {
     for (int step = 0; step < steps; ++step) FlightModel_Step(model, &input, DT);
 }
 
+static void SetAirborneAtSpeed(FlightModel* model, float speed, float pitch) {
+    FlightModel_Reset(model);
+    model->state.y += 300.0f;
+    model->state.pitch = pitch;
+    model->state.onGround = 0;
+    model->velocityX = 0.0f;
+    model->velocityY = 0.0f;
+    model->velocityZ = -speed;
+}
+
 int main(void) {
     FlightModel model;
     FlightInput input = {0};
@@ -41,6 +51,31 @@ int main(void) {
     state = FlightModel_GetState(&model);
     CHECK(state->pitch > 0.20f, "airborne pitch input must have full authority");
     CHECK(state->altitude > 10.0f, "positive pitch must gain altitude");
+
+    /* The essential control-law checks: the same fast airflow must produce
+       opposite vertical results for opposite pitch commands.  This prevents
+       the old speed-only lift model from returning unnoticed. */
+    SetAirborneAtSpeed(&model, 60.0f, 0.16f);
+    const float climbStart = model.state.y;
+    StepFor(&model, (FlightInput){0}, 1.5f);
+    state = FlightModel_GetState(&model);
+    CHECK(state->y > climbStart + 2.0f, "positive pitch at high speed must establish a climb");
+    CHECK(state->verticalSpeed > 0.5f, "positive pitch at high speed must have positive vertical speed");
+
+    SetAirborneAtSpeed(&model, 60.0f, -0.16f);
+    const float descentStart = model.state.y;
+    StepFor(&model, (FlightInput){0}, 1.5f);
+    state = FlightModel_GetState(&model);
+    CHECK(state->y < descentStart - 2.0f, "negative pitch at high speed must establish a descent");
+    CHECK(state->verticalSpeed < -0.5f, "negative pitch at high speed must have negative vertical speed");
+    CHECK(state->angleOfAttack > -0.30f && state->angleOfAttack < 0.30f,
+          "angle of attack must settle independently of body pitch");
+
+    SetAirborneAtSpeed(&model, 50.0f, 0.0f);
+    const float levelStart = model.state.y;
+    StepFor(&model, (FlightInput){0}, 2.0f);
+    state = FlightModel_GetState(&model);
+    CHECK(fabsf(state->y - levelStart) < 4.0f, "cruise speed with neutral pitch must remain near level");
 
     input = (FlightInput){ .roll = 1.0f };
     StepFor(&model, input, 1.0f);

@@ -20,6 +20,10 @@ typedef struct {
     float verticalSpeed;
     float lift;
     float drag;
+    /* Angles in radians.  They are kept in the state so deterministic tests
+       and the dev HUD can inspect the actual aerodynamic input. */
+    float angleOfAttack;
+    float flightPathAngle;
     int onGround;
 } FlightState;
 
