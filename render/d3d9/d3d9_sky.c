@@ -111,6 +111,7 @@ void D3D9_RenderSky(void) {
     device->lpVtbl->SetFVF(device, D3DFVF_XYZ | D3DFVF_DIFFUSE | D3DFVF_TEX1);
     device->lpVtbl->SetRenderState(device, D3DRS_ZENABLE, FALSE);
     device->lpVtbl->SetRenderState(device, D3DRS_ZWRITEENABLE, FALSE);
+    device->lpVtbl->SetRenderState(device, D3DRS_FOGENABLE, FALSE);
     device->lpVtbl->SetRenderState(device, D3DRS_ALPHABLENDENABLE, FALSE);
     device->lpVtbl->SetTexture(device, 0, NULL);
     device->lpVtbl->SetTextureStageState(device, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);

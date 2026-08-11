@@ -45,7 +45,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Camera_Update(deltaTime, flight);
         Renderer_BeginFrame();
         Renderer_RenderSky();
-        Renderer_RenderTestGround();
+        Renderer_RenderTerrain();
         Renderer_SetAircraftWorldMatrix(flight->x, flight->y, flight->z,
                                         flight->pitch, flight->yaw, flight->roll);
         Renderer_RenderMesh();

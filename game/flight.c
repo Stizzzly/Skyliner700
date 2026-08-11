@@ -1,6 +1,7 @@
 #include <math.h>
 #include <windows.h>
 #include "flight.h"
+#include "world/terrain.h"
 
 #define GROUND_CLEARANCE 0.45f
 #define STALL_SPEED 18.0f
@@ -78,12 +79,14 @@ void Flight_Update(float deltaTime) {
     g_flight.y += g_velocityY * deltaTime;
     g_flight.z += g_velocityZ * deltaTime;
 
-    if (g_flight.y <= GROUND_CLEARANCE) {
-        g_flight.y = GROUND_CLEARANCE;
+    const float groundHeight = Terrain_GetHeight(g_flight.x, g_flight.z) + GROUND_CLEARANCE;
+    if (g_flight.y <= groundHeight) {
+        g_flight.y = groundHeight;
         if (g_velocityY < 0.0f) g_velocityY = 0.0f;
         g_flight.onGround = 1;
-        g_velocityX *= 1.0f - 0.8f * deltaTime;
-        g_velocityZ *= 1.0f - 0.8f * deltaTime;
+        const float groundFriction = Terrain_IsRunway(g_flight.x, g_flight.z) ? 0.8f : 2.3f;
+        g_velocityX *= 1.0f - groundFriction * deltaTime;
+        g_velocityZ *= 1.0f - groundFriction * deltaTime;
     } else {
         g_flight.onGround = 0;
     }

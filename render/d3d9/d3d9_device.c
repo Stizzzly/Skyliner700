@@ -12,14 +12,53 @@ static IDirect3D9*       g_pD3D = NULL;
 static IDirect3DDevice9* g_pd3dDevice = NULL;
 static IDirect3DTexture9* g_planeTexture = NULL;
 static IDirect3DTexture9* g_skyCloudTexture = NULL;
+static IDirect3DTexture9* g_terrainGrassTexture = NULL;
+static IDirect3DTexture9* g_runwayTexture = NULL;
 
 void D3D9_Shutdown(void);
 int D3D9_SkyInit(void);
 void D3D9_SkyShutdown(void);
 void D3D9_RenderSky(void);
-int D3D9_TestGroundInit(void);
-void D3D9_TestGroundShutdown(void);
-void D3D9_RenderTestGround(void);
+int D3D9_TerrainInit(void);
+void D3D9_TerrainShutdown(void);
+void D3D9_RenderTerrain(void);
+
+static int D3D9_LoadAssetTexture(const char* assetName, int width, int height,
+                                 IDirect3DTexture9** texture) {
+    char executablePath[MAX_PATH];
+    char* lastSlash;
+    HBITMAP bitmap;
+    DIBSECTION dib;
+    D3DLOCKED_RECT lockedRect;
+    HRESULT hr;
+    if (GetModuleFileNameA(NULL, executablePath, sizeof(executablePath)) == 0) return 0;
+    lastSlash = strrchr(executablePath, '\\');
+    if (!lastSlash || strlen("\\assets\\") + strlen(assetName) + (size_t)(lastSlash - executablePath) + 1 > sizeof(executablePath)) return 0;
+    strcpy(lastSlash, "\\assets\\");
+    strcat(lastSlash, assetName);
+    bitmap = (HBITMAP)LoadImageA(NULL, executablePath, IMAGE_BITMAP, 0, 0, LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+    if (!bitmap || GetObject(bitmap, sizeof(dib), &dib) != sizeof(dib) ||
+        dib.dsBm.bmWidth != width || abs(dib.dsBm.bmHeight) != height ||
+        dib.dsBm.bmBitsPixel != 32 || !dib.dsBm.bmBits) {
+        fprintf(stderr, "Unable to load %dx%d texture: %s\\n", width, height, executablePath);
+        if (bitmap) DeleteObject(bitmap);
+        return 0;
+    }
+    hr = g_pd3dDevice->lpVtbl->CreateTexture(g_pd3dDevice,width,height,1,0,D3DFMT_A8R8G8B8,D3DPOOL_MANAGED,texture,NULL);
+    if (FAILED(hr) || FAILED((*texture)->lpVtbl->LockRect(*texture,0,&lockedRect,NULL,0))) {
+        if (*texture) { (*texture)->lpVtbl->Release(*texture); *texture = NULL; }
+        DeleteObject(bitmap);
+        return 0;
+    }
+    for (int row = 0; row < height; ++row) {
+        const int sourceRow = dib.dsBmih.biHeight > 0 ? height - 1 - row : row;
+        const unsigned char* source = (const unsigned char*)dib.dsBm.bmBits + sourceRow * dib.dsBm.bmWidthBytes;
+        memcpy((unsigned char*)lockedRect.pBits + row * lockedRect.Pitch, source, (size_t)width * 4);
+    }
+    (*texture)->lpVtbl->UnlockRect(*texture,0);
+    DeleteObject(bitmap);
+    return 1;
+}
 
 static int D3D9_LoadPlaneTexture(void) {
     char executablePath[MAX_PATH];
@@ -196,8 +235,10 @@ int D3D9_Init(HWND hWnd) {
         D3D9_Shutdown();
         return 0;
     }
-    if (!D3D9_TestGroundInit()) {
-        fprintf(stderr, "Unable to initialize test runway.\n");
+    if (!D3D9_LoadAssetTexture("terrain_grass.bmp", 256, 256, &g_terrainGrassTexture) ||
+        !D3D9_LoadAssetTexture("runway_asphalt.bmp", 256, 256, &g_runwayTexture) ||
+        !D3D9_TerrainInit()) {
+        fprintf(stderr, "Unable to initialize terrain and aerodrome.\n");
         D3D9_Shutdown();
         return 0;
     }
@@ -207,7 +248,9 @@ int D3D9_Init(HWND hWnd) {
 
 void D3D9_Shutdown() {
     D3D9_SkyShutdown();
-    D3D9_TestGroundShutdown();
+    D3D9_TerrainShutdown();
+    if (g_runwayTexture) { g_runwayTexture->lpVtbl->Release(g_runwayTexture); g_runwayTexture = NULL; }
+    if (g_terrainGrassTexture) { g_terrainGrassTexture->lpVtbl->Release(g_terrainGrassTexture); g_terrainGrassTexture = NULL; }
     if (g_skyCloudTexture) { g_skyCloudTexture->lpVtbl->Release(g_skyCloudTexture); g_skyCloudTexture = NULL; }
     if (g_planeTexture) { g_planeTexture->lpVtbl->Release(g_planeTexture); g_planeTexture = NULL; }
     if (g_pd3dDevice) { g_pd3dDevice->lpVtbl->Release(g_pd3dDevice); g_pd3dDevice = NULL; }
@@ -236,6 +279,8 @@ void Renderer_EndFrame() { D3D9_EndFrame(); }
 IDirect3DDevice9* GetD3D9Device() { return g_pd3dDevice; } // для внутреннего использования в d3d9_*.c
 IDirect3DBaseTexture9* GetPlaneTexture() { return (IDirect3DBaseTexture9*)g_planeTexture; }
 IDirect3DBaseTexture9* GetSkyCloudTexture() { return (IDirect3DBaseTexture9*)g_skyCloudTexture; }
+IDirect3DBaseTexture9* GetTerrainGrassTexture() { return (IDirect3DBaseTexture9*)g_terrainGrassTexture; }
+IDirect3DBaseTexture9* GetRunwayTexture() { return (IDirect3DBaseTexture9*)g_runwayTexture; }
 
 void Renderer_RenderSky() { D3D9_RenderSky(); }
-void Renderer_RenderTestGround() { D3D9_RenderTestGround(); }
+void Renderer_RenderTerrain() { D3D9_RenderTerrain(); }

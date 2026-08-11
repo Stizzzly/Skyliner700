@@ -17,7 +17,7 @@ set(SKYLINER_SOURCES
         render/d3d9/d3d9_matrix.c
         render/d3d9/d3d9_mesh.c
         render/d3d9/d3d9_sky.c
-        render/d3d9/d3d9_test_ground.c
+        render/d3d9/d3d9_terrain.c
 )
 
 add_executable(${PROJECT_NAME} ${SKYLINER_SOURCES})

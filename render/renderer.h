@@ -20,7 +20,7 @@ void Renderer_EndFrame();
 
 // Небо фиксированного конвейера: градиентный купол и слой облаков.
 void Renderer_RenderSky();
-void Renderer_RenderTestGround();
+void Renderer_RenderTerrain();
 
 // Установка матрицы мира (позиция + вращение объекта)
 void Renderer_SetWorldMatrix(float x, float y, float z, float rotY);
