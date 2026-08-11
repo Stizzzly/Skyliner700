@@ -1,10 +1,12 @@
 // main.c — высокоуровневая логика
 
 #include <windows.h>
-#include <stdio.h>
 #include <math.h>
+#if !defined(NDEBUG)
+#include <stdio.h>
 #define PSAPI_VERSION 1
 #include <psapi.h>
+#endif
 #include "core/window.h"
 #include "render/renderer.h"
 #include "model/plane.h"
@@ -20,10 +22,13 @@ typedef enum {
 } GameScreen;
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    // Open console for diagnostics
+    // Keep diagnostics out of distributable builds: AllocConsole creates a
+    // visible command window even though this is a GUI application.
+#if !defined(NDEBUG)
     AllocConsole();
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
+#endif
 
     if (!Window_Init(hInstance)) return 1;
     if (!Renderer_Init(Window_GetHWND())) return 1;
@@ -43,9 +48,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         return 1;
     }
 
-    // Игровой цикл with FPS and resource logging
+    // Игровой цикл
+#if !defined(NDEBUG)
     int frameCount = 0;
     DWORD fpsLast = GetTickCount();
+#endif
     DWORD previousTime = GetTickCount();
     GameScreen screen = GAME_MAIN_MENU;
     int menuSelection = 0;
@@ -129,6 +136,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         }
         Renderer_EndFrame();
 
+#if !defined(NDEBUG)
         frameCount++;
         now = GetTickCount();
         if (now - fpsLast >= 1000) {
@@ -145,6 +153,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
             }
             fflush(stdout);
         }
+#endif
     }
 
     Renderer_Shutdown();
