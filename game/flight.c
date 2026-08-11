@@ -87,7 +87,9 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
        makes Left/Right useful in flight instead of being a visual-only roll. */
     horizontalSpeed = sqrtf(model->velocityX * model->velocityX + model->velocityZ * model->velocityZ);
     if (!state->onGround && horizontalSpeed > MIN_TURN_SPEED) {
-        const float bankTurnRate = GRAVITY * tanf(state->roll) / horizontalSpeed;
+        /* Positive roll is the visually right-wing-down bank.  In this
+           coordinate system a right turn has decreasing yaw. */
+        const float bankTurnRate = -GRAVITY * tanf(state->roll) / horizontalSpeed;
         state->yaw += bankTurnRate * deltaTime;
         forwardX = sinf(state->yaw) * cosf(state->pitch);
         forwardY = sinf(state->pitch);
@@ -121,7 +123,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     }
     if (!state->onGround || lift > GRAVITY) {
         const float verticalLift = lift * cosf(state->roll);
-        const float lateralLift = lift * sinf(state->roll);
+        const float lateralLift = -lift * sinf(state->roll);
         const float rightX = cosf(state->yaw);
         const float rightZ = sinf(state->yaw);
         model->velocityY += (verticalLift - GRAVITY) * deltaTime;

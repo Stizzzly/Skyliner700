@@ -83,13 +83,13 @@ int main(void) {
     StepFor(&model, input, 2.0f);
     state = FlightModel_GetState(&model);
     CHECK(state->roll > 0.70f, "airborne roll input must bank the aircraft");
-    CHECK(state->yaw > 0.30f, "positive bank must turn the aircraft without rudder input");
+    CHECK(state->yaw < -0.30f, "right-wing-down bank must turn right without rudder input");
 
     SetAirborneAtSpeed(&model, 55.0f, 0.03f);
     input = (FlightInput){ .roll = -1.0f };
     StepFor(&model, input, 2.0f);
     state = FlightModel_GetState(&model);
-    CHECK(state->yaw < -0.30f, "negative bank must turn the aircraft in the opposite direction");
+    CHECK(state->yaw > 0.30f, "left-wing-down bank must turn left without rudder input");
 
     SetAirborneAtSpeed(&model, 55.0f, 0.03f);
     const float yawBeforeTurn = state->yaw;

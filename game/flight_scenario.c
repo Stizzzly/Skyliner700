@@ -95,9 +95,9 @@ void FlightScenario_BuildInput(const FlightScenario* scenario, const FlightState
             /* Give the banked turn a moment to unload before the glide. */
             targetThrottle = 0.52f;
             targetPitch = 0.02f;
-            /* Counter the small leftward side velocity left by the final
+            /* Counter the rightward side velocity left by the final
                turn, then let the glide start on the runway centreline. */
-            input->roll = TargetAxis(state->roll, 0.16f);
+            input->roll = TargetAxis(state->roll, 0.38f);
             break;
         case FLIGHT_SCENARIO_CRUISE:
             targetThrottle = 0.58f;
@@ -139,7 +139,7 @@ void FlightScenario_Observe(FlightScenario* scenario, const FlightState* state, 
             else if (scenario->phaseTime > 25.0f) { scenario->phase = FLIGHT_SCENARIO_FAIL; scenario->failure = "NO CLIMB"; }
             break;
         case FLIGHT_SCENARIO_CIRCLE:
-            if (state->yaw - scenario->circleStartYaw >= FULL_CIRCLE_RADIANS) {
+            if (state->yaw - scenario->circleStartYaw <= -FULL_CIRCLE_RADIANS) {
                 scenario->circleCompleted = 1;
                 scenario->phase = FLIGHT_SCENARIO_RETURN_TURN_OUT;
                 scenario->phaseTime = 0.0f;
@@ -149,7 +149,7 @@ void FlightScenario_Observe(FlightScenario* scenario, const FlightState* state, 
             }
             break;
         case FLIGHT_SCENARIO_RETURN_TURN_OUT:
-            if (state->yaw >= scenario->circleStartYaw + FULL_CIRCLE_RADIANS + PI_RADIANS) {
+            if (state->yaw <= scenario->circleStartYaw - FULL_CIRCLE_RADIANS - PI_RADIANS) {
                 scenario->phase = FLIGHT_SCENARIO_RETURN_LEG;
                 scenario->phaseTime = 0.0f;
             } else if (scenario->phaseTime > 30.0f) {
@@ -167,7 +167,7 @@ void FlightScenario_Observe(FlightScenario* scenario, const FlightState* state, 
             }
             break;
         case FLIGHT_SCENARIO_RETURN_TURN_IN:
-            if (state->yaw >= scenario->circleStartYaw + FULL_CIRCLE_RADIANS * 2.0f) {
+            if (state->yaw <= scenario->circleStartYaw - FULL_CIRCLE_RADIANS * 2.0f) {
                 if (fabsf(state->x) <= 45.0f && state->z >= 210.0f && state->z <= 450.0f) {
                     scenario->phase = FLIGHT_SCENARIO_APPROACH;
                     scenario->phaseTime = 0.0f;
