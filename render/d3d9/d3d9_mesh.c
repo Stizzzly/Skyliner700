@@ -5,6 +5,7 @@
 #include "renderer.h"
 
 extern IDirect3DDevice9* GetD3D9Device();
+extern IDirect3DBaseTexture9* GetPlaneTexture();
 
 static IDirect3DVertexBuffer9* g_pVB = NULL;
 static int g_vertexCount = 0;
@@ -42,6 +43,7 @@ void D3D9_RenderMesh() {
     if (!device || !g_pVB) return;
 
     device->lpVtbl->SetStreamSource(device, 0, g_pVB, 0, (UINT)g_vertexStride);
+    device->lpVtbl->SetTexture(device, 0, GetPlaneTexture());
     device->lpVtbl->SetFVF(device, g_fvf);
     device->lpVtbl->DrawPrimitive(device, D3DPT_TRIANGLELIST, 0, g_vertexCount / 3);
 }

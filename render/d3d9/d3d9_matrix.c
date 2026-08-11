@@ -23,8 +23,10 @@ void D3D9_SetupCamera() {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
 
-    D3DXVECTOR3 eye = {0.0f, 3.0f, -7.0f};
-    D3DXVECTOR3 at  = {0.0f, 1.0f,  0.0f};
+    // Диагональный вид показывает форму фюзеляжа и оба крыла; точка
+    // наблюдения направлена в начало координат, где стоит модель.
+    D3DXVECTOR3 eye = {8.0f, 4.5f, -10.0f};
+    D3DXVECTOR3 at  = {0.0f, 0.2f,  0.0f};
     D3DXVECTOR3 up  = {0.0f, 1.0f,  0.0f};
 
     D3DXMATRIX matView;
@@ -33,7 +35,7 @@ void D3D9_SetupCamera() {
 
     D3DXMATRIX matProj;
     float aspect = 800.0f / 600.0f; // TODO: вынести в конфиг
-    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(60.0f), aspect, 0.1f, 100.0f);
+    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(55.0f), aspect, 0.1f, 100.0f);
     device->lpVtbl->SetTransform(device, D3DTS_PROJECTION, &matProj);
 }
 
