@@ -56,6 +56,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         DWORD now = GetTickCount();
         float deltaTime = (now - previousTime) * 0.001f;
         previousTime = now;
+        Flight_UpdateInputFrame();
         FlightInput input = {0};
         Flight_ReadKeyboardInput(&input);
 
