@@ -2,12 +2,14 @@
 
 #include <windows.h>
 #include <stdio.h>
+#include <math.h>
 #include <psapi.h>
 #include "core/window.h"
 #include "render/renderer.h"
 #include "model/plane.h"
 #include "game/flight.h"
 #include "game/camera.h"
+#include "world/terrain.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Open console for diagnostics
@@ -50,6 +52,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Renderer_SetAircraftWorldMatrix(flight->x, flight->y, flight->z,
                                         flight->pitch, flight->yaw, flight->roll);
         Renderer_RenderMesh();
+        float heading = fmodf(flight->yaw * 57.2957795f, 360.0f);
+        if (heading < 0.0f) heading += 360.0f;
+        Renderer_RenderHud(flight->speed * 3.6f,
+                           fmaxf(0.0f, flight->y - Terrain_GetHeight(flight->x, flight->z)),
+                           flight->pitch * 57.2957795f, flight->roll * 57.2957795f, heading);
         Renderer_EndFrame();
 
         frameCount++;

@@ -22,6 +22,8 @@ void D3D9_RenderSky(void);
 int D3D9_TerrainInit(void);
 void D3D9_TerrainShutdown(void);
 void D3D9_RenderTerrain(void);
+void D3D9_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
+                    float bankDegrees, float headingDegrees);
 
 static int D3D9_LoadAssetTexture(const char* assetName, int width, int height,
                                  IDirect3DTexture9** texture) {
@@ -303,3 +305,7 @@ IDirect3DBaseTexture9* GetRunwayTexture() { return (IDirect3DBaseTexture9*)g_run
 
 void Renderer_RenderSky() { D3D9_RenderSky(); }
 void Renderer_RenderTerrain() { D3D9_RenderTerrain(); }
+void Renderer_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
+                        float bankDegrees, float headingDegrees) {
+    D3D9_RenderHud(speedKph, altitudeMeters, pitchDegrees, bankDegrees, headingDegrees);
+}
