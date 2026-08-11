@@ -9,12 +9,14 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # once a build directory is created inside the project.
 set(SKYLINER_SOURCES
         main.c
+        game/flight.c
         core/window.c
         model/plane.c
         render/d3d9/d3d9_device.c
         render/d3d9/d3d9_matrix.c
         render/d3d9/d3d9_mesh.c
         render/d3d9/d3d9_sky.c
+        render/d3d9/d3d9_test_ground.c
 )
 
 add_executable(${PROJECT_NAME} ${SKYLINER_SOURCES})

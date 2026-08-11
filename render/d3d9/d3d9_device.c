@@ -17,6 +17,9 @@ void D3D9_Shutdown(void);
 int D3D9_SkyInit(void);
 void D3D9_SkyShutdown(void);
 void D3D9_RenderSky(void);
+int D3D9_TestGroundInit(void);
+void D3D9_TestGroundShutdown(void);
+void D3D9_RenderTestGround(void);
 
 static int D3D9_LoadPlaneTexture(void) {
     char executablePath[MAX_PATH];
@@ -193,12 +196,18 @@ int D3D9_Init(HWND hWnd) {
         D3D9_Shutdown();
         return 0;
     }
+    if (!D3D9_TestGroundInit()) {
+        fprintf(stderr, "Unable to initialize test runway.\n");
+        D3D9_Shutdown();
+        return 0;
+    }
 
     return 1;
 }
 
 void D3D9_Shutdown() {
     D3D9_SkyShutdown();
+    D3D9_TestGroundShutdown();
     if (g_skyCloudTexture) { g_skyCloudTexture->lpVtbl->Release(g_skyCloudTexture); g_skyCloudTexture = NULL; }
     if (g_planeTexture) { g_planeTexture->lpVtbl->Release(g_planeTexture); g_planeTexture = NULL; }
     if (g_pd3dDevice) { g_pd3dDevice->lpVtbl->Release(g_pd3dDevice); g_pd3dDevice = NULL; }
@@ -229,3 +238,4 @@ IDirect3DBaseTexture9* GetPlaneTexture() { return (IDirect3DBaseTexture9*)g_plan
 IDirect3DBaseTexture9* GetSkyCloudTexture() { return (IDirect3DBaseTexture9*)g_skyCloudTexture; }
 
 void Renderer_RenderSky() { D3D9_RenderSky(); }
+void Renderer_RenderTestGround() { D3D9_RenderTestGround(); }

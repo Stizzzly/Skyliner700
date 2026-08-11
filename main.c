@@ -6,6 +6,7 @@
 #include "core/window.h"
 #include "render/renderer.h"
 #include "model/plane.h"
+#include "game/flight.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
     // Open console for diagnostics
@@ -16,6 +17,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
 
     if (!Window_Init(hInstance)) return 1;
     if (!Renderer_Init(Window_GetHWND())) return 1;
+    Flight_Init();
 
     // Загружаем модель
     if (!Renderer_CreateMesh(
@@ -33,16 +35,24 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     // Игровой цикл with FPS and resource logging
     int frameCount = 0;
     DWORD fpsLast = GetTickCount();
+    DWORD previousTime = GetTickCount();
     while (Window_IsRunning()) {
         Window_ProcessMessages();
+        DWORD now = GetTickCount();
+        float deltaTime = (now - previousTime) * 0.001f;
+        previousTime = now;
+        Flight_Update(deltaTime);
+        const FlightState* flight = Flight_GetState();
         Renderer_BeginFrame();
         Renderer_RenderSky();
-        Renderer_SetWorldMatrix(0.0f, 0.0f, 0.0f, 0.0f);
+        Renderer_RenderTestGround();
+        Renderer_SetAircraftWorldMatrix(flight->x, flight->y, flight->z,
+                                        flight->pitch, flight->yaw, flight->roll);
         Renderer_RenderMesh();
         Renderer_EndFrame();
 
         frameCount++;
-        DWORD now = GetTickCount();
+        now = GetTickCount();
         if (now - fpsLast >= 1000) {
             // FPS
             printf("FPS: %d\n", frameCount);

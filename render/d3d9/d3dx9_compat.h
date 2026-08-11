@@ -45,6 +45,18 @@ static inline D3DXMATRIX *D3DXMatrixRotationY(D3DXMATRIX *out, float angle) {
     return out;
 }
 
+static inline D3DXMATRIX *D3DXMatrixRotationX(D3DXMATRIX *out, float angle) {
+    const float c = cosf(angle), s = sinf(angle);
+    *out = (D3DXMATRIX){ .m = {{1.0f,0.0f,0.0f,0.0f},{0.0f,c,s,0.0f},{0.0f,-s,c,0.0f},{0.0f,0.0f,0.0f,1.0f}}};
+    return out;
+}
+
+static inline D3DXMATRIX *D3DXMatrixRotationZ(D3DXMATRIX *out, float angle) {
+    const float c = cosf(angle), s = sinf(angle);
+    *out = (D3DXMATRIX){ .m = {{c,s,0.0f,0.0f},{-s,c,0.0f,0.0f},{0.0f,0.0f,1.0f,0.0f},{0.0f,0.0f,0.0f,1.0f}}};
+    return out;
+}
+
 static inline D3DXMATRIX *D3DXMatrixTranslation(D3DXMATRIX *out, float x, float y, float z) {
     *out = (D3DXMATRIX){ .m = {
         { 1.0f, 0.0f, 0.0f, 0.0f },
