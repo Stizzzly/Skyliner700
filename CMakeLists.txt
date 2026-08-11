@@ -46,7 +46,7 @@ if (WIN32)
     # Unicode, but no forced XP version
     target_compile_definitions(${PROJECT_NAME} PRIVATE UNICODE _UNICODE)
 
-    # Link libraries (psapi нужен для GetProcessMemoryInfo)
+    # PSAPI_VERSION=1 keeps GetProcessMemoryInfo in PSAPI.DLL, which exists on XP.
     target_link_libraries(${PROJECT_NAME} PRIVATE d3d9 kernel32 user32 gdi32 psapi)
 endif()
 

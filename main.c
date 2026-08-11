@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <stdio.h>
 #include <math.h>
+#define PSAPI_VERSION 1
 #include <psapi.h>
 #include "core/window.h"
 #include "render/renderer.h"
@@ -23,7 +24,6 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     AllocConsole();
     freopen("CONOUT$", "w", stdout);
     freopen("CONOUT$", "w", stderr);
-    FILE* __startup = fopen("C:\\Users\\ADMIN\\CLionProjects\\Skyliner700\\startup_marker.txt", "w"); if (__startup) { fprintf(__startup, "started: %llu\n", (unsigned long long)GetTickCount()); fclose(__startup); }
 
     if (!Window_Init(hInstance)) return 1;
     if (!Renderer_Init(Window_GetHWND())) return 1;
