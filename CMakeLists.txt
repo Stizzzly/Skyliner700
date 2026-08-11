@@ -12,6 +12,7 @@ set(SKYLINER_SOURCES
         game/camera.c
         game/flight.c
         game/flight_input.c
+        game/flight_scenario.c
         world/terrain.c
         core/window.c
         model/plane.c
@@ -51,7 +52,7 @@ endif()
 
 include(CTest)
 if (BUILD_TESTING)
-    add_executable(flight_physics_tests tests/flight_physics_tests.c game/flight.c world/terrain.c)
+    add_executable(flight_physics_tests tests/flight_physics_tests.c game/flight.c game/flight_scenario.c world/terrain.c)
     target_include_directories(flight_physics_tests PRIVATE "${CMAKE_SOURCE_DIR}")
     target_link_libraries(flight_physics_tests PRIVATE m)
     add_test(NAME flight_physics COMMAND flight_physics_tests)

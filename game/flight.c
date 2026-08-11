@@ -6,7 +6,7 @@
 #define AIRCRAFT_CLEARANCE 0.53f
 #define STALL_SPEED 18.0f
 #define ENGINE_ACCELERATION 18.0f
-#define ENGINE_FULL_POWER_SPEED 82.0f
+#define ENGINE_FULL_POWER_SPEED 70.0f
 #define MAX_AIRSPEED 90.0f
 #define PARASITIC_DRAG 0.0026f
 #define GRAVITY 9.81f
@@ -80,7 +80,14 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     model->velocityY += forwardY * thrust * deltaTime;
     model->velocityZ += forwardZ * thrust * deltaTime;
 
-    if (forwardSpeed > STALL_SPEED) lift = (forwardSpeed - STALL_SPEED) * (forwardSpeed - STALL_SPEED) * 0.022f * cosf(state->roll);
+    if (forwardSpeed > STALL_SPEED) {
+        /* At roughly 50 m/s a level aircraft produces its weight in lift.
+           Pitch changes the effective angle of attack, so level flight no
+           longer turns into an endless climb and overspeed. */
+        const float speedRatio = forwardSpeed / 50.0f;
+        const float angleFactor = Clamp(1.0f + state->pitch * 2.5f, 0.20f, 2.40f);
+        lift = GRAVITY * speedRatio * speedRatio * angleFactor * cosf(state->roll);
+    }
     if (!state->onGround || lift > GRAVITY) model->velocityY += (lift - GRAVITY) * deltaTime;
 
     airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
@@ -89,6 +96,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     model->velocityX *= dragMultiplier;
     model->velocityY *= dragMultiplier;
     model->velocityZ *= dragMultiplier;
+    airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
     if (airspeed > MAX_AIRSPEED) {
         const float limiter = MAX_AIRSPEED / airspeed;
         model->velocityX *= limiter; model->velocityY *= limiter; model->velocityZ *= limiter;

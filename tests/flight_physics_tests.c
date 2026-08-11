@@ -1,6 +1,7 @@
 #include <math.h>
 #include <stdio.h>
 #include "game/flight.h"
+#include "game/flight_scenario.h"
 
 #define DT (1.0f / 120.0f)
 
@@ -59,6 +60,18 @@ int main(void) {
     CHECK(state->speed < speedBeforeIdle, "idle thrust must slow the aircraft");
     CHECK(state->speed <= 90.01f, "absolute airspeed limit must hold");
     CHECK(state->onGround, "idle descent must return to terrain");
+
+    FlightScenario scenario;
+    FlightScenario_Init(&scenario);
+    Flight_Init();
+    FlightScenario_Start(&scenario);
+    for (int step = 0; step < (int)(100.0f / DT) && FlightScenario_IsActive(&scenario); ++step) {
+        FlightInput scenarioInput;
+        FlightScenario_BuildInput(&scenario, Flight_GetState(), &scenarioInput);
+        Flight_Step(&scenarioInput, DT);
+        FlightScenario_Observe(&scenario, Flight_GetState(), DT);
+    }
+    CHECK(scenario.phase == FLIGHT_SCENARIO_PASS, "scripted takeoff and landing scenario must pass");
 
     if (g_failures) return 1;
     printf("flight physics tests passed\n");

@@ -9,6 +9,7 @@
 #include "model/plane.h"
 #include "game/flight.h"
 #include "game/flight_input.h"
+#include "game/flight_scenario.h"
 #include "game/camera.h"
 
 int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
@@ -21,6 +22,8 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!Window_Init(hInstance)) return 1;
     if (!Renderer_Init(Window_GetHWND())) return 1;
     Flight_Init();
+    FlightScenario scenario;
+    FlightScenario_Init(&scenario);
     Camera_Init();
     Renderer_SetupCamera();
 
@@ -45,8 +48,13 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         previousTime = now;
         FlightInput input;
         Flight_ReadKeyboardInput(&input);
+        if (Flight_KeyPressed(VK_F5)) FlightScenario_Start(&scenario);
+        if (Flight_KeyPressed(VK_F6)) scenario.telemetryEnabled = !scenario.telemetryEnabled;
+        if (input.reset && FlightScenario_IsActive(&scenario)) FlightScenario_Cancel(&scenario);
+        if (FlightScenario_IsActive(&scenario)) FlightScenario_BuildInput(&scenario, Flight_GetState(), &input);
         Flight_Step(&input, deltaTime);
         const FlightState* flight = Flight_GetState();
+        FlightScenario_Observe(&scenario, flight, deltaTime);
         Camera_Update(deltaTime, flight);
         Renderer_BeginFrame();
         Renderer_RenderSky();
@@ -59,6 +67,9 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Renderer_RenderHud(flight->speed * 3.6f,
                            flight->altitude,
                            flight->pitch * 57.2957795f, flight->roll * 57.2957795f, heading);
+        Renderer_RenderDevHud(FlightScenario_Status(&scenario), scenario.telemetryEnabled,
+                              flight->throttle, flight->verticalSpeed, flight->lift, flight->drag,
+                              flight->onGround, input.pitch, input.roll, input.yaw);
         Renderer_EndFrame();
 
         frameCount++;

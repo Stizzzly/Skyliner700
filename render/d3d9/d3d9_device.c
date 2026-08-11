@@ -24,6 +24,9 @@ void D3D9_TerrainShutdown(void);
 void D3D9_RenderTerrain(void);
 void D3D9_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
                     float bankDegrees, float headingDegrees);
+void D3D9_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
+                       float throttle, float verticalSpeed, float lift, float drag,
+                       int onGround, float pitchInput, float rollInput, float yawInput);
 
 static int D3D9_LoadAssetTexture(const char* assetName, int width, int height,
                                  IDirect3DTexture9** texture) {
@@ -308,4 +311,10 @@ void Renderer_RenderTerrain() { D3D9_RenderTerrain(); }
 void Renderer_RenderHud(float speedKph, float altitudeMeters, float pitchDegrees,
                         float bankDegrees, float headingDegrees) {
     D3D9_RenderHud(speedKph, altitudeMeters, pitchDegrees, bankDegrees, headingDegrees);
+}
+void Renderer_RenderDevHud(const char* scenarioStatus, int telemetryEnabled,
+                           float throttle, float verticalSpeed, float lift, float drag,
+                           int onGround, float pitchInput, float rollInput, float yawInput) {
+    D3D9_RenderDevHud(scenarioStatus, telemetryEnabled, throttle, verticalSpeed, lift, drag,
+                      onGround, pitchInput, rollInput, yawInput);
 }
