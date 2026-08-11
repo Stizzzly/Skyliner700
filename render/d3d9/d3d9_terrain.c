@@ -168,8 +168,8 @@ void D3D9_RenderTerrain(void) {
     device->lpVtbl->SetRenderState(device,D3DRS_FOGENABLE,TRUE);
     device->lpVtbl->SetRenderState(device,D3DRS_FOGCOLOR,D3DCOLOR_XRGB(135,195,218));
     device->lpVtbl->SetRenderState(device,D3DRS_FOGVERTEXMODE,D3DFOG_LINEAR);
-    device->lpVtbl->SetRenderState(device,D3DRS_FOGSTART,FloatBits(150.0f));
-    device->lpVtbl->SetRenderState(device,D3DRS_FOGEND,FloatBits(650.0f));
+    device->lpVtbl->SetRenderState(device,D3DRS_FOGSTART,FloatBits(350.0f));
+    device->lpVtbl->SetRenderState(device,D3DRS_FOGEND,FloatBits(1050.0f));
     device->lpVtbl->SetSamplerState(device,0,D3DSAMP_ADDRESSU,D3DTADDRESS_WRAP);
     device->lpVtbl->SetSamplerState(device,0,D3DSAMP_ADDRESSV,D3DTADDRESS_WRAP);
     device->lpVtbl->SetStreamSource(device,0,g_terrainVB,0,sizeof(TerrainVertex));

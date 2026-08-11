@@ -20,6 +20,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     if (!Renderer_Init(Window_GetHWND())) return 1;
     Flight_Init();
     Camera_Init();
+    Renderer_SetupCamera();
 
     // Загружаем модель
     if (!Renderer_CreateMesh(

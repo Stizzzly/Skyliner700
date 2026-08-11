@@ -30,10 +30,19 @@ static void SetThirdPersonCamera(const FlightState* flight, float interpolation)
     const float atX = flight->x + forwardX * 8.0f;
     const float atY = flight->y + forwardY * 8.0f + 1.2f;
     const float atZ = flight->z + forwardZ * 8.0f;
+    const float cameraErrorX = desiredX - g_eyeX;
+    const float cameraErrorY = desiredY - g_eyeY;
+    const float cameraErrorZ = desiredZ - g_eyeZ;
 
-    g_eyeX += (desiredX - g_eyeX) * interpolation;
-    g_eyeY += (desiredY - g_eyeY) * interpolation;
-    g_eyeZ += (desiredZ - g_eyeZ) * interpolation;
+    /* Do not let the follow camera lag kilometres behind a reset or a sharp
+       manoeuvre.  Ordinary motion remains smoothed, but a large error snaps. */
+    if (cameraErrorX * cameraErrorX + cameraErrorY * cameraErrorY + cameraErrorZ * cameraErrorZ > 900.0f) {
+        g_eyeX = desiredX; g_eyeY = desiredY; g_eyeZ = desiredZ;
+    } else {
+        g_eyeX += cameraErrorX * interpolation;
+        g_eyeY += cameraErrorY * interpolation;
+        g_eyeZ += cameraErrorZ * interpolation;
+    }
     Renderer_SetCameraLookAt(g_eyeX, g_eyeY, g_eyeZ, atX, atY, atZ);
 }
 
@@ -114,7 +123,7 @@ void Camera_Update(float deltaTime, const FlightState* flight) {
     g_cameraKeyWasDown = cameraKeyDown;
 
     if (g_thirdPerson) {
-        SetThirdPersonCamera(flight, Clamp(deltaTime * 5.0f, 0.0f, 1.0f));
+        SetThirdPersonCamera(flight, Clamp(deltaTime * 12.0f, 0.0f, 1.0f));
     } else {
         UpdateFreeCamera(deltaTime);
     }

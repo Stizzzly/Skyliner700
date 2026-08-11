@@ -9,6 +9,15 @@ extern IDirect3DDevice9* GetD3D9Device();
 static D3DXVECTOR3 g_cameraEye = {0.0f, 6.45f, 238.0f};
 static D3DXVECTOR3 g_cameraAt = {0.0f, 1.65f, 212.0f};
 
+static void D3D9_ApplyCameraView(void) {
+    IDirect3DDevice9* device = GetD3D9Device();
+    D3DXVECTOR3 up = {0.0f, 1.0f, 0.0f};
+    D3DXMATRIX matView;
+    if (!device) return;
+    D3DXMatrixLookAtLH(&matView, &g_cameraEye, &g_cameraAt, &up);
+    device->lpVtbl->SetTransform(device, D3DTS_VIEW, &matView);
+}
+
 void D3D9_SetWorldMatrix(float x, float y, float z, float rotY) {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
@@ -26,15 +35,13 @@ void D3D9_SetupCamera() {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
 
-    D3DXVECTOR3 up  = {0.0f, 1.0f,  0.0f};
-
-    D3DXMATRIX matView;
-    D3DXMatrixLookAtLH(&matView, &g_cameraEye, &g_cameraAt, &up);
-    device->lpVtbl->SetTransform(device, D3DTS_VIEW, &matView);
+    D3D9_ApplyCameraView();
 
     D3DXMATRIX matProj;
     float aspect = 800.0f / 600.0f; // TODO: вынести в конфиг
-    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(55.0f), aspect, 0.1f, 100.0f);
+    /* 100 m was left over from the isolated aircraft test.  It was clipping
+       the 1.2 km map at the nose; fog now hides the far edge naturally. */
+    D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(55.0f), aspect, 0.1f, 1200.0f);
     device->lpVtbl->SetTransform(device, D3DTS_PROJECTION, &matProj);
 }
 
@@ -56,7 +63,7 @@ void D3D9_SetCameraLookAt(float eyeX, float eyeY, float eyeZ,
                            float atX, float atY, float atZ) {
     g_cameraEye = (D3DXVECTOR3){eyeX, eyeY, eyeZ};
     g_cameraAt = (D3DXVECTOR3){atX, atY, atZ};
-    D3D9_SetupCamera();
+    D3D9_ApplyCameraView();
 }
 
 void D3D9_SetSkyWorldMatrix(void) {

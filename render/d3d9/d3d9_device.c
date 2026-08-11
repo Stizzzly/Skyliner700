@@ -201,14 +201,33 @@ int D3D9_Init(HWND hWnd) {
     d3dpp.AutoDepthStencilFormat = D3DFMT_D16;
     d3dpp.PresentationInterval   = D3DPRESENT_INTERVAL_IMMEDIATE;
 
+    D3DCAPS9 caps = {0};
+    DWORD vertexProcessing = D3DCREATE_SOFTWARE_VERTEXPROCESSING;
+    g_pD3D->lpVtbl->GetDeviceCaps(g_pD3D, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL, &caps);
+    if (caps.DevCaps & D3DDEVCAPS_HWTRANSFORMANDLIGHT) {
+        vertexProcessing = D3DCREATE_HARDWARE_VERTEXPROCESSING;
+        fprintf(stdout, "D3D9: using hardware transform and lighting.\\n");
+    } else {
+        fprintf(stdout, "D3D9: hardware T&L unavailable, using software fallback.\\n");
+    }
+
     HRESULT hr = g_pD3D->lpVtbl->CreateDevice(g_pD3D,
         D3DADAPTER_DEFAULT,
         D3DDEVTYPE_HAL,
         hWnd,
-        D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+        vertexProcessing,
         &d3dpp,
         &g_pd3dDevice
     );
+
+    /* Keep compatibility with very old drivers that advertise HWT&L but
+       reject the hardware path for the current desktop format. */
+    if (FAILED(hr) && vertexProcessing == D3DCREATE_HARDWARE_VERTEXPROCESSING) {
+        hr = g_pD3D->lpVtbl->CreateDevice(g_pD3D, D3DADAPTER_DEFAULT, D3DDEVTYPE_HAL,
+                                          hWnd, D3DCREATE_SOFTWARE_VERTEXPROCESSING,
+                                          &d3dpp, &g_pd3dDevice);
+        if (SUCCEEDED(hr)) fprintf(stdout, "D3D9: fell back to software transform and lighting.\\n");
+    }
 
     if (FAILED(hr)) {
         FILE* __f = fopen("C:\\Users\\ADMIN\\CLionProjects\\Skyliner700\\debug_init.log","a"); if(__f){ fprintf(__f, "CreateDevice failed: 0x%08x\n", (unsigned)hr); fclose(__f); }
