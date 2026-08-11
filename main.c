@@ -59,8 +59,11 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         Renderer_BeginFrame();
         Renderer_RenderSky();
         Renderer_RenderTerrain();
+        /* The mesh nose is local -Z.  D3DX positive Y rotation turns local
+           -Z toward world -X, so negate simulation yaw to point the rendered
+           aircraft along the same forward vector used by flight and camera. */
         Renderer_SetAircraftWorldMatrix(flight->x, flight->y, flight->z,
-                                        flight->pitch, flight->yaw, flight->roll);
+                                        flight->pitch, -flight->yaw, flight->roll);
         Renderer_RenderMesh();
         float heading = fmodf(flight->yaw * 57.2957795f, 360.0f);
         if (heading < 0.0f) heading += 360.0f;

@@ -21,13 +21,9 @@ static float Clamp(float value, float minimum, float maximum) {
 }
 
 static void SetThirdPersonCamera(const FlightState* flight, float interpolation) {
-    /* The aircraft world transform and the flight model use opposite yaw
-       handedness for their visual forward axis.  Mirror yaw here so the
-       chase offset remains behind the tail through either turn. */
-    const float cameraYaw = -flight->yaw;
-    const float forwardX = sinf(cameraYaw) * cosf(flight->pitch);
+    const float forwardX = sinf(flight->yaw) * cosf(flight->pitch);
     const float forwardY = sinf(flight->pitch);
-    const float forwardZ = -cosf(cameraYaw) * cosf(flight->pitch);
+    const float forwardZ = -cosf(flight->yaw) * cosf(flight->pitch);
     const float desiredX = flight->x - forwardX * 18.0f;
     const float desiredY = flight->y - forwardY * 18.0f + 6.0f;
     const float desiredZ = flight->z - forwardZ * 18.0f;
