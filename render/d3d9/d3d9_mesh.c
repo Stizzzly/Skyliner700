@@ -43,8 +43,15 @@ void D3D9_RenderMesh() {
     if (!device || !g_pVB) return;
 
     device->lpVtbl->SetStreamSource(device, 0, g_pVB, 0, (UINT)g_vertexStride);
+    device->lpVtbl->SetRenderState(device, D3DRS_ZENABLE, TRUE);
+    device->lpVtbl->SetRenderState(device, D3DRS_ZWRITEENABLE, TRUE);
+    device->lpVtbl->SetRenderState(device, D3DRS_ALPHABLENDENABLE, FALSE);
     device->lpVtbl->SetTexture(device, 0, GetPlaneTexture());
     device->lpVtbl->SetFVF(device, g_fvf);
+    device->lpVtbl->SetTextureStageState(device, 0, D3DTSS_COLOROP, D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device, 0, D3DTSS_COLORARG1, D3DTA_TEXTURE);
+    device->lpVtbl->SetTextureStageState(device, 0, D3DTSS_ALPHAOP, D3DTOP_SELECTARG1);
+    device->lpVtbl->SetTextureStageState(device, 0, D3DTSS_ALPHAARG1, D3DTA_TEXTURE);
     device->lpVtbl->DrawPrimitive(device, D3DPT_TRIANGLELIST, 0, g_vertexCount / 3);
 }
 

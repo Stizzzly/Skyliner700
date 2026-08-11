@@ -36,6 +36,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
     while (Window_IsRunning()) {
         Window_ProcessMessages();
         Renderer_BeginFrame();
+        Renderer_RenderSky();
         Renderer_SetWorldMatrix(0.0f, 0.0f, 0.0f, 0.0f);
         Renderer_RenderMesh();
         Renderer_EndFrame();

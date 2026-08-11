@@ -6,6 +6,8 @@
 
 extern IDirect3DDevice9* GetD3D9Device();
 
+static const D3DXVECTOR3 g_cameraEye = {8.0f, 4.5f, -10.0f};
+
 void D3D9_SetWorldMatrix(float x, float y, float z, float rotY) {
     IDirect3DDevice9* device = GetD3D9Device();
     if (!device) return;
@@ -25,18 +27,25 @@ void D3D9_SetupCamera() {
 
     // Диагональный вид показывает форму фюзеляжа и оба крыла; точка
     // наблюдения направлена в начало координат, где стоит модель.
-    D3DXVECTOR3 eye = {8.0f, 4.5f, -10.0f};
     D3DXVECTOR3 at  = {0.0f, 0.2f,  0.0f};
     D3DXVECTOR3 up  = {0.0f, 1.0f,  0.0f};
 
     D3DXMATRIX matView;
-    D3DXMatrixLookAtLH(&matView, &eye, &at, &up);
+    D3DXMatrixLookAtLH(&matView, &g_cameraEye, &at, &up);
     device->lpVtbl->SetTransform(device, D3DTS_VIEW, &matView);
 
     D3DXMATRIX matProj;
     float aspect = 800.0f / 600.0f; // TODO: вынести в конфиг
     D3DXMatrixPerspectiveFovLH(&matProj, D3DXToRadian(55.0f), aspect, 0.1f, 100.0f);
     device->lpVtbl->SetTransform(device, D3DTS_PROJECTION, &matProj);
+}
+
+void D3D9_SetSkyWorldMatrix(void) {
+    IDirect3DDevice9* device = GetD3D9Device();
+    D3DXMATRIX matrix;
+    if (!device) return;
+    D3DXMatrixTranslation(&matrix, g_cameraEye.x, g_cameraEye.y, g_cameraEye.z);
+    device->lpVtbl->SetTransform(device, D3DTS_WORLD, &matrix);
 }
 
 // Экспортируем через интерфейс

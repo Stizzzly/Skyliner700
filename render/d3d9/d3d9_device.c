@@ -11,8 +11,12 @@
 static IDirect3D9*       g_pD3D = NULL;
 static IDirect3DDevice9* g_pd3dDevice = NULL;
 static IDirect3DTexture9* g_planeTexture = NULL;
+static IDirect3DTexture9* g_skyCloudTexture = NULL;
 
 void D3D9_Shutdown(void);
+int D3D9_SkyInit(void);
+void D3D9_SkyShutdown(void);
+void D3D9_RenderSky(void);
 
 static int D3D9_LoadPlaneTexture(void) {
     char executablePath[MAX_PATH];
@@ -80,6 +84,66 @@ static int D3D9_LoadPlaneTexture(void) {
     return 1;
 }
 
+/* The cloud source uses #00ff00 as a chroma key.  The red/blue amount is a
+ * good alpha estimate for antialiased cloud edges over that green backdrop. */
+static int D3D9_LoadSkyCloudTexture(void) {
+    char executablePath[MAX_PATH];
+    char* fileName;
+    HBITMAP bitmap;
+    DIBSECTION dib;
+    D3DLOCKED_RECT lockedRect;
+    HRESULT hr;
+    const int width = 256;
+    const int height = 256;
+
+    if (GetModuleFileNameA(NULL, executablePath, sizeof(executablePath)) == 0) return 0;
+    fileName = strrchr(executablePath, '\\');
+    if (!fileName || (size_t)(fileName - executablePath) + sizeof("\\assets\\sky_clouds.bmp") > sizeof(executablePath)) return 0;
+    strcpy(fileName, "\\assets\\sky_clouds.bmp");
+
+    bitmap = (HBITMAP)LoadImageA(NULL, executablePath, IMAGE_BITMAP, 0, 0,
+                                 LR_LOADFROMFILE | LR_CREATEDIBSECTION);
+    if (!bitmap || GetObject(bitmap, sizeof(dib), &dib) != sizeof(dib) ||
+        dib.dsBm.bmWidth != width || abs(dib.dsBm.bmHeight) != height ||
+        dib.dsBm.bmBitsPixel != 32 || !dib.dsBm.bmBits) {
+        fprintf(stderr, "Unable to load 256x256 sky cloud texture: %s\n", executablePath);
+        if (bitmap) DeleteObject(bitmap);
+        return 0;
+    }
+
+    hr = g_pd3dDevice->lpVtbl->CreateTexture(g_pd3dDevice, width, height, 1, 0,
+                                              D3DFMT_A8R8G8B8, D3DPOOL_MANAGED,
+                                              &g_skyCloudTexture, NULL);
+    if (FAILED(hr)) {
+        DeleteObject(bitmap);
+        return 0;
+    }
+    hr = g_skyCloudTexture->lpVtbl->LockRect(g_skyCloudTexture, 0, &lockedRect, NULL, 0);
+    if (FAILED(hr)) {
+        g_skyCloudTexture->lpVtbl->Release(g_skyCloudTexture);
+        g_skyCloudTexture = NULL;
+        DeleteObject(bitmap);
+        return 0;
+    }
+
+    for (int row = 0; row < height; ++row) {
+        const int sourceRow = dib.dsBmih.biHeight > 0 ? height - 1 - row : row;
+        const unsigned char* source = (const unsigned char*)dib.dsBm.bmBits + sourceRow * dib.dsBm.bmWidthBytes;
+        unsigned char* destination = (unsigned char*)lockedRect.pBits + row * lockedRect.Pitch;
+        for (int column = 0; column < width; ++column) {
+            const unsigned char alpha = source[column * 4] < source[column * 4 + 2]
+                                      ? source[column * 4] : source[column * 4 + 2];
+            destination[column * 4] = 255;
+            destination[column * 4 + 1] = 255;
+            destination[column * 4 + 2] = 255;
+            destination[column * 4 + 3] = alpha < 12 ? 0 : alpha;
+        }
+    }
+    g_skyCloudTexture->lpVtbl->UnlockRect(g_skyCloudTexture, 0);
+    DeleteObject(bitmap);
+    return 1;
+}
+
 int D3D9_Init(HWND hWnd) {
     g_pD3D = Direct3DCreate9(D3D_SDK_VERSION);
     if (!g_pD3D) {
@@ -124,11 +188,18 @@ int D3D9_Init(HWND hWnd) {
         D3D9_Shutdown();
         return 0;
     }
+    if (!D3D9_LoadSkyCloudTexture() || !D3D9_SkyInit()) {
+        fprintf(stderr, "Unable to initialize the fixed-function sky.\n");
+        D3D9_Shutdown();
+        return 0;
+    }
 
     return 1;
 }
 
 void D3D9_Shutdown() {
+    D3D9_SkyShutdown();
+    if (g_skyCloudTexture) { g_skyCloudTexture->lpVtbl->Release(g_skyCloudTexture); g_skyCloudTexture = NULL; }
     if (g_planeTexture) { g_planeTexture->lpVtbl->Release(g_planeTexture); g_planeTexture = NULL; }
     if (g_pd3dDevice) { g_pd3dDevice->lpVtbl->Release(g_pd3dDevice); g_pd3dDevice = NULL; }
     if (g_pD3D)       { g_pD3D->lpVtbl->Release(g_pD3D);       g_pD3D = NULL; }
@@ -155,3 +226,6 @@ void Renderer_EndFrame() { D3D9_EndFrame(); }
 
 IDirect3DDevice9* GetD3D9Device() { return g_pd3dDevice; } // для внутреннего использования в d3d9_*.c
 IDirect3DBaseTexture9* GetPlaneTexture() { return (IDirect3DBaseTexture9*)g_planeTexture; }
+IDirect3DBaseTexture9* GetSkyCloudTexture() { return (IDirect3DBaseTexture9*)g_skyCloudTexture; }
+
+void Renderer_RenderSky() { D3D9_RenderSky(); }
