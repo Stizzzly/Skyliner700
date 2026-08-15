@@ -160,10 +160,26 @@ static void UpdateInput(float deltaTime)
 
 static void RenderFrame()
 {
-    XMVECTOR eye = { 0.0f, 3.0f, 12.0f, 0.0f };
-    XMVECTOR target = { 0.0f, 0.2f, 0.0f, 0.0f };
+    const FlightState* flight = Flight_GetState();
+    const float forwardX = sinf(flight->yaw) * cosf(flight->pitch);
+    const float forwardY = sinf(flight->pitch);
+    const float forwardZ = -cosf(flight->yaw) * cosf(flight->pitch);
+    XMVECTOR eye = {
+        flight->x - forwardX * 18.0f,
+        flight->y - forwardY * 18.0f + 6.0f,
+        flight->z - forwardZ * 18.0f,
+        0.0f
+    };
+    XMVECTOR target = {
+        flight->x + forwardX * 8.0f,
+        flight->y + forwardY * 8.0f + 1.2f,
+        flight->z + forwardZ * 8.0f,
+        0.0f
+    };
     XMVECTOR up = { 0.0f, 1.0f, 0.0f, 0.0f };
-    XMMATRIX world = XMMatrixIdentity();
+    XMMATRIX rotation = XMMatrixRotationRollPitchYaw(flight->pitch, -flight->yaw, flight->roll);
+    XMMATRIX translation = XMMatrixTranslation(flight->x, flight->y, flight->z);
+    XMMATRIX world = rotation * translation;
     XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
     XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, 16.0f / 9.0f, 0.1f, 100.0f);
     XMMATRIX wvp = world * view * projection;
