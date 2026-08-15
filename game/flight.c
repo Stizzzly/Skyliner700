@@ -32,14 +32,16 @@ static float Max(float left, float right) {
 static float AircraftSurfaceHeight(float x, float z, float yaw) {
     static const float contacts[][2] = {{0.0f,-3.20f},{0.0f,3.15f},{-3.95f,0.55f},{3.95f,0.55f},{0.0f,0.0f}};
     float highest = -100000.0f;
-    const float cosine = cosf(yaw);
-    const float sine = sinf(yaw);
-    for (int point = 0; point < (int)(sizeof(contacts) / sizeof(contacts[0])); ++point) {
-        const float localX = contacts[point][0];
-        const float localZ = contacts[point][1];
-        const float worldX = x + localX * cosine + localZ * sine;
-        const float worldZ = z - localX * sine + localZ * cosine;
-        const float height = Terrain_GetSurfaceHeight(worldX, worldZ);
+    float cosine = cosf(yaw);
+    float sine = sinf(yaw);
+    float localX, localZ, worldX, worldZ, height;
+    int point;
+    for (point = 0; point < (int)(sizeof(contacts) / sizeof(contacts[0])); ++point) {
+        localX = contacts[point][0];
+        localZ = contacts[point][1];
+        worldX = x + localX * cosine + localZ * sine;
+        worldZ = z - localX * sine + localZ * cosine;
+        height = Terrain_GetSurfaceHeight(worldX, worldZ);
         if (height > highest) highest = height;
     }
     return highest;
@@ -64,6 +66,9 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     float forwardSpeed, airspeed, lift = 0.0f;
     float horizontalSpeed, flightPathAngle, angleOfAttack, liftCoefficient;
     float groundHeight;
+    float bankTurnRate, thrustFactor, thrust, speedRatio;
+    float verticalLift, lateralLift, rightX, rightZ;
+    float dragRate, dragMultiplier, limiter, groundFriction, friction;
     FlightInput noInput = {0};
     if (!model) return;
     if (!input) input = &noInput;
@@ -93,15 +98,15 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     if (!state->onGround && horizontalSpeed > MIN_TURN_SPEED) {
         /* Positive roll is the visually right-wing-down bank.  In this
            coordinate system a right turn has decreasing yaw. */
-        const float bankTurnRate = -GRAVITY * tanf(state->roll) / horizontalSpeed;
+        bankTurnRate = -GRAVITY * tanf(state->roll) / horizontalSpeed;
         state->yaw += bankTurnRate * deltaTime;
         forwardX = sinf(state->yaw) * cosf(state->pitch);
         forwardY = sinf(state->pitch);
         forwardZ = -cosf(state->yaw) * cosf(state->pitch);
         forwardSpeed = model->velocityX * forwardX + model->velocityY * forwardY + model->velocityZ * forwardZ;
     }
-    const float thrustFactor = Clamp((ENGINE_FULL_POWER_SPEED - forwardSpeed) / 20.0f, 0.0f, 1.0f);
-    const float thrust = ENGINE_ACCELERATION * state->throttle * thrustFactor;
+    thrustFactor = Clamp((ENGINE_FULL_POWER_SPEED - forwardSpeed) / 20.0f, 0.0f, 1.0f);
+    thrust = ENGINE_ACCELERATION * state->throttle * thrustFactor;
     model->velocityX += forwardX * thrust * deltaTime;
     model->velocityY += forwardY * thrust * deltaTime;
     model->velocityZ += forwardZ * thrust * deltaTime;
@@ -122,28 +127,28 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     }
     liftCoefficient = Clamp(liftCoefficient, -0.35f, 2.20f);
     if (forwardSpeed > STALL_SPEED && liftCoefficient > 0.0f) {
-        const float speedRatio = forwardSpeed / CRUISE_SPEED;
+        speedRatio = forwardSpeed / CRUISE_SPEED;
         lift = GRAVITY * speedRatio * speedRatio * liftCoefficient * cosf(state->roll);
     }
     if (!state->onGround || lift > GRAVITY) {
-        const float verticalLift = lift * cosf(state->roll);
-        const float lateralLift = -lift * sinf(state->roll);
-        const float rightX = cosf(state->yaw);
-        const float rightZ = sinf(state->yaw);
+        verticalLift = lift * cosf(state->roll);
+        lateralLift = -lift * sinf(state->roll);
+        rightX = cosf(state->yaw);
+        rightZ = sinf(state->yaw);
         model->velocityY += (verticalLift - GRAVITY) * deltaTime;
         model->velocityX += rightX * lateralLift * deltaTime;
         model->velocityZ += rightZ * lateralLift * deltaTime;
     }
 
     airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
-    const float dragRate = PARASITIC_DRAG * airspeed + lift * 0.00035f;
-    const float dragMultiplier = Clamp(1.0f - dragRate * deltaTime, 0.0f, 1.0f);
+    dragRate = PARASITIC_DRAG * airspeed + lift * 0.00035f;
+    dragMultiplier = Clamp(1.0f - dragRate * deltaTime, 0.0f, 1.0f);
     model->velocityX *= dragMultiplier;
     model->velocityY *= dragMultiplier;
     model->velocityZ *= dragMultiplier;
     airspeed = sqrtf(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
     if (airspeed > MAX_AIRSPEED) {
-        const float limiter = MAX_AIRSPEED / airspeed;
+        limiter = MAX_AIRSPEED / airspeed;
         model->velocityX *= limiter; model->velocityY *= limiter; model->velocityZ *= limiter;
     }
 
@@ -155,8 +160,8 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
         state->y = groundHeight;
         if (model->velocityY < 0.0f) model->velocityY = 0.0f;
         state->onGround = 1;
-        const float groundFriction = Terrain_IsRunway(state->x, state->z) ? 0.12f : 1.20f;
-        const float friction = Clamp(1.0f - groundFriction * deltaTime, 0.0f, 1.0f);
+        groundFriction = Terrain_IsRunway(state->x, state->z) ? 0.12f : 1.20f;
+        friction = Clamp(1.0f - groundFriction * deltaTime, 0.0f, 1.0f);
         model->velocityX *= friction;
         model->velocityZ *= friction;
     } else {
