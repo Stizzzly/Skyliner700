@@ -25,6 +25,10 @@ static float Clamp(float value, float minimum, float maximum) {
     return value;
 }
 
+static float Max(float left, float right) {
+    return left > right ? left : right;
+}
+
 static float AircraftSurfaceHeight(float x, float z, float yaw) {
     static const float contacts[][2] = {{0.0f,-3.20f},{0.0f,3.15f},{-3.95f,0.55f},{3.95f,0.55f},{0.0f,0.0f}};
     float highest = -100000.0f;
@@ -108,7 +112,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
        up establishes a climbing flight path and nose down establishes a
        descending one. */
     horizontalSpeed = sqrtf(model->velocityX * model->velocityX + model->velocityZ * model->velocityZ);
-    flightPathAngle = atan2f(model->velocityY, fmaxf(horizontalSpeed, 0.1f));
+    flightPathAngle = atan2f(model->velocityY, Max(horizontalSpeed, 0.1f));
     angleOfAttack = Clamp(state->pitch - flightPathAngle, MIN_AOA, MAX_AOA);
     liftCoefficient = LIFT_COEFFICIENT_ZERO_AOA + LIFT_SLOPE * angleOfAttack;
     if (angleOfAttack > 0.30f) {
@@ -164,7 +168,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, float deltaT
     state->drag = dragRate * state->speed;
     state->angleOfAttack = angleOfAttack;
     state->flightPathAngle = flightPathAngle;
-    state->altitude = fmaxf(0.0f, state->y - groundHeight);
+    state->altitude = Max(0.0f, state->y - groundHeight);
 }
 
 const FlightState* FlightModel_GetState(const FlightModel* model) { return model ? &model->state : NULL; }

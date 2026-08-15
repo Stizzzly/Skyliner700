@@ -2,12 +2,15 @@
 // This deliberately contains no PC Win32 code and no runtime D3DX compiler.
 
 #include "stdafx.h"
+#include "game/flight.h"
 
 static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
 static BOOL g_running = TRUE;
 static BOOL g_gamepadConnected = FALSE;
 static DWORD g_clearColor = D3DCOLOR_XRGB(82, 169, 220);
+static LARGE_INTEGER g_lastTick;
+static float g_secondsPerTick;
 
 static HRESULT CreateRenderer()
 {
@@ -48,29 +51,73 @@ static HRESULT CreateRenderer()
     return S_OK;
 }
 
-static void UpdateInput()
+static float NormalizeStick(SHORT value)
+{
+    float normalized = (float)value / 32767.0f;
+    if (normalized > -0.18f && normalized < 0.18f)
+        return 0.0f;
+    return normalized;
+}
+
+static void InitTimer()
+{
+    LARGE_INTEGER frequency;
+    QueryPerformanceFrequency(&frequency);
+    g_secondsPerTick = 1.0f / (float)frequency.QuadPart;
+    QueryPerformanceCounter(&g_lastTick);
+}
+
+static float GetDeltaTime()
+{
+    LARGE_INTEGER currentTick;
+    QueryPerformanceCounter(&currentTick);
+    const float deltaTime = (float)(currentTick.QuadPart - g_lastTick.QuadPart) * g_secondsPerTick;
+    g_lastTick = currentTick;
+    return deltaTime;
+}
+
+static void UpdateDebugColor(const FlightState* flight)
+{
+    const int throttle = (int)(flight->throttle * 150.0f);
+    const int speed = (int)(flight->speed * 2.0f);
+
+    if (!g_gamepadConnected)
+    {
+        g_clearColor = D3DCOLOR_XRGB(45, 55, 70);
+    }
+    else if (!flight->onGround)
+    {
+        g_clearColor = D3DCOLOR_XRGB(35, 115 + (speed > 90 ? 90 : speed), 210);
+    }
+    else
+    {
+        g_clearColor = D3DCOLOR_XRGB(55 + throttle, 110 + (speed > 100 ? 100 : speed), 180);
+    }
+}
+
+static void UpdateInput(float deltaTime)
 {
     XINPUT_STATE state;
+    FlightInput input = {0};
     ZeroMemory(&state, sizeof(state));
 
     g_gamepadConnected = XInputGetState(0, &state) == ERROR_SUCCESS;
-    if (!g_gamepadConnected)
+    if (g_gamepadConnected)
     {
-        g_clearColor = D3DCOLOR_XRGB(70, 100, 130);
-        return;
+        // Left stick: pitch and roll. Triggers: throttle. Bumpers: yaw.
+        input.pitch = NormalizeStick(state.Gamepad.sThumbLY);
+        input.roll = NormalizeStick(state.Gamepad.sThumbLX);
+        input.throttle = ((float)state.Gamepad.bRightTrigger - (float)state.Gamepad.bLeftTrigger) / 255.0f;
+        input.yaw = ((state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f) -
+                    ((state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f);
+        input.reset = (state.Gamepad.wButtons & XINPUT_GAMEPAD_A) != 0;
+
+        if (state.Gamepad.wButtons & XINPUT_GAMEPAD_START)
+            g_running = FALSE;
     }
 
-    // Temporary visual feedback while input mapping is being ported.
-    // A = runway orange, B = terrain green, default = sky blue.
-    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_A)
-        g_clearColor = D3DCOLOR_XRGB(220, 135, 55);
-    else if (state.Gamepad.wButtons & XINPUT_GAMEPAD_B)
-        g_clearColor = D3DCOLOR_XRGB(66, 145, 75);
-    else
-        g_clearColor = D3DCOLOR_XRGB(82, 169, 220);
-
-    if (state.Gamepad.wButtons & XINPUT_GAMEPAD_START)
-        g_running = FALSE;
+    Flight_Step(&input, deltaTime);
+    UpdateDebugColor(Flight_GetState());
 }
 
 static void RenderFrame()
@@ -101,9 +148,12 @@ void __cdecl main()
     if (FAILED(CreateRenderer()))
         return;
 
+    Flight_Init();
+    InitTimer();
+
     while (g_running)
     {
-        UpdateInput();
+        UpdateInput(GetDeltaTime());
         RenderFrame();
     }
 

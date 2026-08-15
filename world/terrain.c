@@ -7,9 +7,13 @@ static float Clamp(float value, float minimum, float maximum) {
     return value;
 }
 
+static float Max(float left, float right) {
+    return left > right ? left : right;
+}
+
 float Terrain_GetHeight(float x, float z) {
     const float hills = sinf(x * 0.012f) * cosf(z * 0.011f) * 17.0f + sinf((x + z) * 0.0065f) * 8.0f;
-    const float airportDistance = fmaxf(fabsf(x) - 100.0f, fabsf(z) - 360.0f);
+    const float airportDistance = Max(fabsf(x) - 100.0f, fabsf(z) - 360.0f);
     return hills * Clamp(airportDistance / 90.0f, 0.0f, 1.0f);
 }
 

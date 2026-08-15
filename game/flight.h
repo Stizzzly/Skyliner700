@@ -1,6 +1,10 @@
 #ifndef SKYLINER_FLIGHT_H
 #define SKYLINER_FLIGHT_H
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /* Controls are normalised to [-1, 1], which makes the simulation independent
  * of Windows keyboard state and deterministic in command-line tests. */
 typedef struct {
@@ -42,5 +46,9 @@ void Flight_Init(void);
 void Flight_Reset(void);
 void Flight_Step(const FlightInput* input, float deltaTime);
 const FlightState* Flight_GetState(void);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
