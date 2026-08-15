@@ -7,5 +7,6 @@
 
 #include <xtl.h>
 #include <xboxmath.h>
+#include <d3dx9.h>
 
 // TODO: reference additional headers your program requires here

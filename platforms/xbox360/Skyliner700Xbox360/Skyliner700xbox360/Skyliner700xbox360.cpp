@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include "game/flight.h"
+#include "model/plane.h"
 
 static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
@@ -11,6 +12,19 @@ static BOOL g_gamepadConnected = FALSE;
 static DWORD g_clearColor = D3DCOLOR_XRGB(82, 169, 220);
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
+static D3DVertexBuffer* g_planeBuffer = NULL;
+static D3DVertexDeclaration* g_planeDeclaration = NULL;
+static D3DVertexShader* g_planeVertexShader = NULL;
+static D3DPixelShader* g_planePixelShader = NULL;
+
+static const char* g_vertexShaderSource =
+"float4x4 WVP : register(c0);"
+"struct IN { float4 position : POSITION; };"
+"struct OUT { float4 position : POSITION; };"
+"OUT main(IN input) { OUT output; output.position = mul(WVP, input.position); return output; }";
+
+static const char* g_pixelShaderSource =
+"float4 main() : COLOR { return float4(0.95, 0.97, 1.0, 1.0); }";
 
 static HRESULT CreateRenderer()
 {
@@ -49,6 +63,50 @@ static HRESULT CreateRenderer()
 
     OutputDebugStringA("Skyliner700: Xbox renderer initialized.\n");
     return S_OK;
+}
+
+static HRESULT CreateAircraft()
+{
+    D3DVERTEXELEMENT9 elements[2] = {
+        { 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 }, D3DDECL_END()
+    };
+    ID3DXBuffer* vertexCode = NULL;
+    ID3DXBuffer* pixelCode = NULL;
+    ID3DXBuffer* errors = NULL;
+    void* vertices;
+    HRESULT result;
+
+    result = D3DXCompileShader(g_vertexShaderSource, (UINT)strlen(g_vertexShaderSource), NULL, NULL,
+                               "main", "vs_2_0", 0, &vertexCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexShader((DWORD*)vertexCode->GetBufferPointer(), &g_planeVertexShader);
+    if (FAILED(result)) goto fail;
+    vertexCode->Release(); vertexCode = NULL;
+    result = D3DXCompileShader(g_pixelShaderSource, (UINT)strlen(g_pixelShaderSource), NULL, NULL,
+                               "main", "ps_2_0", 0, &pixelCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreatePixelShader((DWORD*)pixelCode->GetBufferPointer(), &g_planePixelShader);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexDeclaration(elements, &g_planeDeclaration);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexBuffer(GetPlaneVertexCount() * GetPlaneVertexStride(), D3DUSAGE_WRITEONLY,
+                                          0, D3DPOOL_MANAGED, &g_planeBuffer, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_planeBuffer->Lock(0, 0, &vertices, 0);
+    if (FAILED(result)) goto fail;
+    memcpy(vertices, GetPlaneVertices(), GetPlaneVertexCount() * GetPlaneVertexStride());
+    g_planeBuffer->Unlock();
+    g_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return S_OK;
+fail:
+    if (errors) OutputDebugStringA((char*)errors->GetBufferPointer());
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return result;
 }
 
 static float NormalizeStick(SHORT value)
@@ -102,15 +160,32 @@ static void UpdateInput(float deltaTime)
 
 static void RenderFrame()
 {
+    XMVECTOR eye = { 0.0f, 3.0f, 12.0f, 0.0f };
+    XMVECTOR target = { 0.0f, 0.2f, 0.0f, 0.0f };
+    XMVECTOR up = { 0.0f, 1.0f, 0.0f, 0.0f };
+    XMMATRIX world = XMMatrixIdentity();
+    XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
+    XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, 16.0f / 9.0f, 0.1f, 100.0f);
+    XMMATRIX wvp = world * view * projection;
     // Xbox 360 D3D does not use PC-style BeginScene/EndScene error returns:
     // they are documented no-ops. Clear and Present are command-buffer calls.
     g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
                     g_clearColor, 1.0f, 0);
+    g_device->SetVertexDeclaration(g_planeDeclaration);
+    g_device->SetStreamSource(0, g_planeBuffer, 0, GetPlaneVertexStride());
+    g_device->SetVertexShader(g_planeVertexShader);
+    g_device->SetPixelShader(g_planePixelShader);
+    g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
+    g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
     g_device->Present(NULL, NULL, NULL, NULL);
 }
 
 static void DestroyRenderer()
 {
+    if (g_planeBuffer) { g_planeBuffer->Release(); g_planeBuffer = NULL; }
+    if (g_planeDeclaration) { g_planeDeclaration->Release(); g_planeDeclaration = NULL; }
+    if (g_planeVertexShader) { g_planeVertexShader->Release(); g_planeVertexShader = NULL; }
+    if (g_planePixelShader) { g_planePixelShader->Release(); g_planePixelShader = NULL; }
     if (g_device)
     {
         g_device->Release();
@@ -127,6 +202,11 @@ void __cdecl main()
 {
     if (FAILED(CreateRenderer()))
         return;
+    if (FAILED(CreateAircraft()))
+    {
+        DestroyRenderer();
+        return;
+    }
 
     Flight_Init();
     InitTimer();
