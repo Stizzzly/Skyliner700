@@ -38,6 +38,7 @@ static HRESULT CreateRenderer()
                                     &presentation, &g_device)))
     {
         OutputDebugStringA("Skyliner700: CreateDevice failed.\n");
+        DebugBreak();
         return E_FAIL;
     }
 
@@ -70,36 +71,13 @@ static void UpdateInput()
         g_running = FALSE;
 }
 
-static BOOL RenderFrame()
+static void RenderFrame()
 {
-    HRESULT result = g_device->BeginScene();
-    if (FAILED(result))
-    {
-        OutputDebugStringA("Skyliner700: BeginScene failed.\n");
-        return FALSE;
-    }
-
-    result = g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-                             g_clearColor, 1.0f, 0);
-    if (SUCCEEDED(result))
-        result = g_device->EndScene();
-    else
-        g_device->EndScene();
-
-    if (FAILED(result))
-    {
-        OutputDebugStringA("Skyliner700: frame clear failed.\n");
-        return FALSE;
-    }
-
-    result = g_device->Present(NULL, NULL, NULL, NULL);
-    if (FAILED(result))
-    {
-        OutputDebugStringA("Skyliner700: Present failed.\n");
-        return FALSE;
-    }
-
-    return TRUE;
+    // Xbox 360 D3D does not use PC-style BeginScene/EndScene error returns:
+    // they are documented no-ops. Clear and Present are command-buffer calls.
+    g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
+                    g_clearColor, 1.0f, 0);
+    g_device->Present(NULL, NULL, NULL, NULL);
 }
 
 static void DestroyRenderer()
@@ -124,8 +102,7 @@ void __cdecl main()
     while (g_running)
     {
         UpdateInput();
-        if (!RenderFrame())
-            break;
+        RenderFrame();
     }
 
     DestroyRenderer();
