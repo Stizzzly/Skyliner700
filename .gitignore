@@ -3,3 +3,14 @@
 /startup_marker.txt
 /debug_init.log
 /dist/
+
+# Visual Studio/XDK user and build artifacts
+*.suo
+*.user
+*.pch
+*.pdb
+*.xex
+*.xdb
+*.xlsp
+/platforms/xbox360/**/Debug/
+/platforms/xbox360/**/Release/
