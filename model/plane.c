@@ -1,6 +1,5 @@
 // plane.c — low-poly самолёт с UV-развёрткой для assets/plane_livery.bmp
 
-#include <d3d9.h>
 #include "plane.h"
 
 typedef struct {

@@ -1,6 +1,11 @@
 #ifndef SKYLINER_PLANE_H
 #define SKYLINER_PLANE_H
 
+#ifdef _XBOX
+#include <xtl.h>
+#else
+#include <windows.h>
+#endif
 #include <d3d9.h>
 
 #ifdef __cplusplus
