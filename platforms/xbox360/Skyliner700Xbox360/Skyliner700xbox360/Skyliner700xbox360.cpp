@@ -13,6 +13,7 @@ static HRESULT CreateRenderer()
 {
     D3DPRESENT_PARAMETERS presentation;
     XVIDEO_MODE videoMode;
+    HRESULT result;
 
     g_d3d = Direct3DCreate9(D3D_SDK_VERSION);
     if (!g_d3d)
@@ -33,9 +34,10 @@ static HRESULT CreateRenderer()
     // Present is synchronized with the television refresh rate.
     presentation.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 
-    if (FAILED(g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
-                                    D3DCREATE_HARDWARE_VERTEXPROCESSING,
-                                    &presentation, &g_device)))
+    result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
+                                  D3DCREATE_HARDWARE_VERTEXPROCESSING,
+                                  &presentation, &g_device);
+    if (FAILED(result))
     {
         OutputDebugStringA("Skyliner700: CreateDevice failed.\n");
         DebugBreak();
