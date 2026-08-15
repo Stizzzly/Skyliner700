@@ -76,25 +76,6 @@ static float GetDeltaTime()
     return deltaTime;
 }
 
-static void UpdateDebugColor(const FlightState* flight)
-{
-    const int throttle = (int)(flight->throttle * 150.0f);
-    const int speed = (int)(flight->speed * 2.0f);
-
-    if (!g_gamepadConnected)
-    {
-        g_clearColor = D3DCOLOR_XRGB(45, 55, 70);
-    }
-    else if (!flight->onGround)
-    {
-        g_clearColor = D3DCOLOR_XRGB(35, 115 + (speed > 90 ? 90 : speed), 210);
-    }
-    else
-    {
-        g_clearColor = D3DCOLOR_XRGB(55 + throttle, 110 + (speed > 100 ? 100 : speed), 180);
-    }
-}
-
 static void UpdateInput(float deltaTime)
 {
     XINPUT_STATE state;
@@ -117,7 +98,6 @@ static void UpdateInput(float deltaTime)
     }
 
     Flight_Step(&input, deltaTime);
-    UpdateDebugColor(Flight_GetState());
 }
 
 static void RenderFrame()
