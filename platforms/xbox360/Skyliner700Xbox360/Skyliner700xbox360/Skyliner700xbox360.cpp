@@ -23,10 +23,14 @@ static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
 static BOOL g_running = TRUE;
 static BOOL g_gamepadConnected = FALSE;
-static BOOL g_msaaEnabled = FALSE;
 static DWORD g_clearColor = D3DCOLOR_XRGB(82, 169, 220);
+static UINT g_renderWidth = 0;
+static UINT g_renderHeight = 0;
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
+static D3DSurface* g_renderTarget = NULL;
+static D3DSurface* g_depthStencil = NULL;
+static D3DTexture* g_frontBuffer = NULL;
 static D3DVertexBuffer* g_planeBuffer = NULL;
 static D3DVertexDeclaration* g_planeDeclaration = NULL;
 static D3DVertexShader* g_planeVertexShader = NULL;
@@ -66,6 +70,7 @@ static const char* g_terrainPixelShaderSource =
 static HRESULT CreateRenderer()
 {
     D3DPRESENT_PARAMETERS presentation;
+    D3DSURFACE_PARAMETERS surfaceParameters;
     XVIDEO_MODE videoMode;
     HRESULT result;
 
@@ -78,17 +83,18 @@ static HRESULT CreateRenderer()
 
     ZeroMemory(&presentation, sizeof(presentation));
     XGetVideoMode(&videoMode);
-    presentation.BackBufferWidth = min(videoMode.dwDisplayWidth, 1280);
-    presentation.BackBufferHeight = min(videoMode.dwDisplayHeight, 720);
+    g_renderWidth = min(videoMode.dwDisplayWidth, 1280);
+    g_renderHeight = min(videoMode.dwDisplayHeight, 720);
+    presentation.BackBufferWidth = g_renderWidth;
+    presentation.BackBufferHeight = g_renderHeight;
     presentation.BackBufferFormat = D3DFMT_X8R8G8B8;
-    presentation.BackBufferCount = 1;
-    /* On Xbox 360 this selects the Xenos 4-sample EDRAM path.  The XDK owns
-       the tiled display surface and resolves its tiles when Present is called.
-       BeginTiling/EndTiling are intentionally not used here: they are for a
-       custom off-screen render target, which must replay the scene for each
-       tile and explicitly resolve into a texture before Swap. */
-    presentation.MultiSampleType = D3DMULTISAMPLE_4_SAMPLES;
-    presentation.EnableAutoDepthStencil = TRUE;
+    presentation.FrontBufferFormat = D3DFMT_LE_X8R8G8B8;
+    presentation.FrontBufferColorSpace = D3DCOLORSPACE_RGB;
+    presentation.MultiSampleType = D3DMULTISAMPLE_NONE;
+    presentation.BackBufferCount = 0;
+    presentation.EnableAutoDepthStencil = FALSE;
+    presentation.DisableAutoBackBuffer = TRUE;
+    presentation.DisableAutoFrontBuffer = TRUE;
     presentation.AutoDepthStencilFormat = D3DFMT_D24S8;
     presentation.SwapEffect = D3DSWAPEFFECT_DISCARD;
     // Present is synchronized with the television refresh rate.
@@ -97,27 +103,31 @@ static HRESULT CreateRenderer()
     result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
                                  D3DCREATE_HARDWARE_VERTEXPROCESSING,
                                  &presentation, &g_device);
-    g_msaaEnabled = SUCCEEDED(result);
-    if (FAILED(result))
-    {
-        /* Some devkit video modes cannot place this presentation surface in
-           EDRAM with 4x samples.  Keep the game bootable rather than entering
-           the debugger; the XDK will still expose 4x where the mode permits. */
-        OutputDebugStringA("Skyliner700: 4x MSAA unavailable; retrying without MSAA.\n");
-        presentation.MultiSampleType = D3DMULTISAMPLE_NONE;
-        result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
-                                     D3DCREATE_HARDWARE_VERTEXPROCESSING,
-                                     &presentation, &g_device);
-        g_msaaEnabled = FALSE;
-    }
     if (FAILED(result))
     {
         OutputDebugStringA("Skyliner700: CreateDevice failed.\n");
         return E_FAIL;
     }
 
-    OutputDebugStringA(g_msaaEnabled ? "Skyliner700: Xbox renderer initialized with 4x MSAA.\n"
-                                     : "Skyliner700: Xbox renderer initialized without MSAA.\n");
+    /* This explicit target/front-buffer chain is the foundation for the
+       upcoming EDRAM tiled MSAA path.  It is the XDK pattern: draw into EDRAM,
+       resolve into UMA memory, then Swap the resolved texture. */
+    ZeroMemory(&surfaceParameters, sizeof(surfaceParameters));
+    result = g_device->CreateRenderTarget(g_renderWidth, g_renderHeight, D3DFMT_X8R8G8B8,
+                                          D3DMULTISAMPLE_NONE, 0, FALSE,
+                                          &g_renderTarget, &surfaceParameters);
+    if (FAILED(result)) return result;
+    surfaceParameters.Base = GPU_EDRAM_TILES / 2;
+    result = g_device->CreateDepthStencilSurface(g_renderWidth, g_renderHeight, D3DFMT_D24S8,
+                                                  D3DMULTISAMPLE_NONE, 0, FALSE,
+                                                  &g_depthStencil, &surfaceParameters);
+    if (FAILED(result)) return result;
+    result = g_device->CreateTexture(g_renderWidth, g_renderHeight, 1, 0,
+                                     presentation.FrontBufferFormat, D3DPOOL_DEFAULT,
+                                     &g_frontBuffer, NULL);
+    if (FAILED(result)) return result;
+
+    OutputDebugStringA("Skyliner700: Xbox explicit EDRAM resolve path initialized.\n");
     return S_OK;
 }
 
@@ -404,8 +414,13 @@ static void RenderFrame()
     XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
     XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, 16.0f / 9.0f, 0.1f, 1200.0f);
     XMMATRIX wvp = world * view * projection;
-    // Xbox 360 D3D does not use PC-style BeginScene/EndScene error returns:
-    // they are documented no-ops. Clear and Present are command-buffer calls.
+    // Xbox 360 D3D uses command-buffer operations rather than PC-style
+    // BeginScene/EndScene error returns; this frame ends in Resolve + Swap.
+    g_device->SetRenderTarget(0, g_renderTarget);
+    g_device->SetRenderTarget(1, NULL);
+    g_device->SetRenderTarget(2, NULL);
+    g_device->SetRenderTarget(3, NULL);
+    g_device->SetDepthStencilSurface(g_depthStencil);
     g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
                     g_clearColor, 1.0f, 0);
     RenderTerrain(view, projection, eye);
@@ -415,11 +430,16 @@ static void RenderFrame()
     g_device->SetPixelShader(g_planePixelShader);
     g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
-    g_device->Present(NULL, NULL, NULL, NULL);
+    g_device->SynchronizeToPresentationInterval();
+    g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
+    g_device->Swap(g_frontBuffer, NULL);
 }
 
 static void DestroyRenderer()
 {
+    if (g_frontBuffer) { g_frontBuffer->Release(); g_frontBuffer = NULL; }
+    if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
+    if (g_renderTarget) { g_renderTarget->Release(); g_renderTarget = NULL; }
     if (g_airportBuffer) { g_airportBuffer->Release(); g_airportBuffer = NULL; }
     if (g_terrainBuffer) { g_terrainBuffer->Release(); g_terrainBuffer = NULL; }
     if (g_terrainDeclaration) { g_terrainDeclaration->Release(); g_terrainDeclaration = NULL; }
