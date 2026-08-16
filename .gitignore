@@ -17,3 +17,6 @@
 
 # Local licensed XDK headers used only for platform research.
 /xbox/
+
+# Local XDK sample used only as an API reference; never distribute it.
+/TiledResources/
