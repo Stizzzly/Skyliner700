@@ -32,6 +32,13 @@ typedef struct HudVertex
 
 #define HUD_MAX_VERTICES 12288
 
+typedef enum GameScreen
+{
+    GAME_MAIN_MENU,
+    GAME_PLAYING,
+    GAME_PAUSED
+} GameScreen;
+
 static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
 static BOOL g_running = TRUE;
@@ -42,6 +49,14 @@ static UINT g_renderHeight = 0;
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
 static BOOL g_tiledMsaaEnabled = FALSE;
+static GameScreen g_screen = GAME_MAIN_MENU;
+static int g_menuSelection = 0;
+static BOOL g_startWasDown = FALSE;
+static BOOL g_confirmWasDown = FALSE;
+static BOOL g_menuUpWasDown = FALSE;
+static BOOL g_menuDownWasDown = FALSE;
+static BOOL g_menuStickUpWasDown = FALSE;
+static BOOL g_menuStickDownWasDown = FALSE;
 static BOOL g_freeCamera = FALSE;
 static BOOL g_backWasDown = FALSE;
 static BOOL g_dpadDownWasDown = FALSE;
@@ -411,6 +426,8 @@ static const unsigned char* HudGlyphFor(char character)
     static const unsigned char u[7] = {17,17,17,17,17,17,14};
     static const unsigned char v[7] = {17,17,17,17,17,10,4};
     static const unsigned char w[7] = {17,17,17,21,21,21,10};
+    static const unsigned char x[7] = {17,17,10,4,10,17,17};
+    static const unsigned char y[7] = {17,17,10,4,4,4,4};
     if (character >= '0' && character <= '9') return g_hudDigits[character - '0'];
     switch (character)
     {
@@ -420,7 +437,7 @@ static const unsigned char* HudGlyphFor(char character)
         case 'I': return i; case 'K': return k; case 'L': return l; case 'M': return m;
         case 'N': return n; case 'O': return o; case 'P': return p; case 'R': return r;
         case 'S': return s; case 'T': return t; case 'U': return u; case 'V': return v;
-        case 'W': return w;
+        case 'W': return w; case 'X': return x; case 'Y': return y;
         default: return blank;
     }
 }
@@ -507,12 +524,12 @@ static void RenderDevHud(const FlightState* flight)
     const BOOL showStatus = strcmp(status, "TST OFF") != 0;
     const DWORD panel = D3DCOLOR_ARGB(155, 4, 12, 20);
     const DWORD text = D3DCOLOR_ARGB(240, 255, 228, 170);
-    float y = 105.0f;
+    float y = 117.0f;
     int count = 0;
 
     if (!showStatus && !g_flightScenario.telemetryEnabled) return;
-    AddHudQuad(vertices, &count, 10.0f, 100.0f, 226.0f,
-               g_flightScenario.telemetryEnabled ? 213.0f : 125.0f, panel);
+    AddHudQuad(vertices, &count, 10.0f, 112.0f, 226.0f,
+               g_flightScenario.telemetryEnabled ? 225.0f : 137.0f, panel);
     if (showStatus)
     {
         AddHudText(vertices, &count, 16.0f, y, status, text);
@@ -533,6 +550,58 @@ static void RenderDevHud(const FlightState* flight)
         AddHudText(vertices, &count, 16.0f, y, ground, text); y += 15.0f;
         AddHudText(vertices, &count, 16.0f, y, input, text);
     }
+    g_device->SetTexture(0, NULL);
+    g_device->SetVertexDeclaration(g_hudDeclaration);
+    g_device->SetVertexShader(g_hudVertexShader);
+    g_device->SetPixelShader(g_hudPixelShader);
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    g_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    g_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    g_device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, count / 3, vertices, sizeof(HudVertex));
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+}
+
+static float HudTextWidth(const char* text)
+{
+    return (float)strlen(text) * 12.0f;
+}
+
+static void RenderMenu()
+{
+    HudVertex vertices[HUD_MAX_VERTICES];
+    const BOOL paused = g_screen == GAME_PAUSED;
+    const char* title = paused ? "PAUSED" : "SKYLINER 700";
+    const char* mainItems[2] = { "START GAME", "EXIT GAME" };
+    const char* pauseItems[3] = { "RESUME", "RETURN MENU", "EXIT GAME" };
+    const int itemCount = paused ? 3 : 2;
+    const DWORD dim = D3DCOLOR_ARGB(145, 0, 0, 0);
+    const DWORD panel = D3DCOLOR_ARGB(228, 7, 20, 34);
+    const DWORD border = D3DCOLOR_ARGB(255, 80, 184, 230);
+    const DWORD regular = D3DCOLOR_ARGB(235, 220, 239, 250);
+    const DWORD selected = D3DCOLOR_ARGB(255, 255, 228, 170);
+    const float panelWidth = 290.0f;
+    const float panelHeight = paused ? 164.0f : 132.0f;
+    const float panelX = ((float)g_renderWidth - panelWidth) * 0.5f;
+    const float panelY = ((float)g_renderHeight - panelHeight) * 0.5f;
+    int item;
+    int count = 0;
+
+    AddHudQuad(vertices, &count, 0.0f, 0.0f, (float)g_renderWidth, (float)g_renderHeight, dim);
+    AddHudQuad(vertices, &count, panelX, panelY, panelX + panelWidth, panelY + panelHeight, panel);
+    AddHudQuad(vertices, &count, panelX, panelY, panelX + panelWidth, panelY + 2.0f, border);
+    AddHudQuad(vertices, &count, panelX, panelY + panelHeight - 2.0f, panelX + panelWidth, panelY + panelHeight, border);
+    AddHudText(vertices, &count, ((float)g_renderWidth - HudTextWidth(title)) * 0.5f, panelY + 18.0f, title, regular);
+    for (item = 0; item < itemCount; ++item)
+    {
+        const char* label = paused ? pauseItems[item] : mainItems[item];
+        const DWORD color = item == g_menuSelection ? selected : regular;
+        const float y = panelY + 55.0f + item * 30.0f;
+        if (item == g_menuSelection)
+            AddHudQuad(vertices, &count, panelX + 24.0f, y - 4.0f, panelX + panelWidth - 24.0f, y + 20.0f,
+                       D3DCOLOR_ARGB(100, 35, 105, 145));
+        AddHudText(vertices, &count, ((float)g_renderWidth - HudTextWidth(label)) * 0.5f, y, label, color);
+    }
+
     g_device->SetTexture(0, NULL);
     g_device->SetVertexDeclaration(g_hudDeclaration);
     g_device->SetVertexShader(g_hudVertexShader);
@@ -810,6 +879,62 @@ static void UpdateFreeCamera(float deltaTime, float moveX, float moveY, float lo
     g_freeCameraZ += (rightZ * moveX + forwardZ * moveY) * moveSpeed * deltaTime;
 }
 
+static void StartGameFromMenu()
+{
+    Flight_Reset();
+    FlightScenario_Cancel(&g_flightScenario);
+    g_flightScenario.telemetryEnabled = FALSE;
+    g_freeCamera = FALSE;
+    g_screen = GAME_PLAYING;
+}
+
+static void ActivateMenuSelection()
+{
+    if (g_screen == GAME_MAIN_MENU)
+    {
+        if (g_menuSelection == 0) StartGameFromMenu();
+        else g_running = FALSE;
+    }
+    else if (g_menuSelection == 0)
+    {
+        g_screen = GAME_PLAYING;
+    }
+    else if (g_menuSelection == 1)
+    {
+        FlightScenario_Cancel(&g_flightScenario);
+        g_flightScenario.telemetryEnabled = FALSE;
+        g_freeCamera = FALSE;
+        g_screen = GAME_MAIN_MENU;
+        g_menuSelection = 0;
+    }
+    else
+    {
+        g_running = FALSE;
+    }
+}
+
+static void UpdateMenuInput(const XINPUT_STATE* state)
+{
+    const int itemCount = g_screen == GAME_PAUSED ? 3 : 2;
+    const BOOL upDown = (state->Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_UP) != 0;
+    const BOOL downDown = (state->Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0;
+    const BOOL stickUp = state->Gamepad.sThumbLY > 16384;
+    const BOOL stickDown = state->Gamepad.sThumbLY < -16384;
+    const BOOL confirmDown = (state->Gamepad.wButtons & XINPUT_GAMEPAD_A) != 0;
+
+    if ((upDown && !g_menuUpWasDown) || (stickUp && !g_menuStickUpWasDown))
+        g_menuSelection = (g_menuSelection + itemCount - 1) % itemCount;
+    if ((downDown && !g_menuDownWasDown) || (stickDown && !g_menuStickDownWasDown))
+        g_menuSelection = (g_menuSelection + 1) % itemCount;
+    if (confirmDown && !g_confirmWasDown)
+        ActivateMenuSelection();
+    g_menuUpWasDown = upDown;
+    g_menuDownWasDown = downDown;
+    g_menuStickUpWasDown = stickUp;
+    g_menuStickDownWasDown = stickDown;
+    g_confirmWasDown = confirmDown;
+}
+
 static void UpdateInput(float deltaTime)
 {
     XINPUT_STATE state;
@@ -820,6 +945,7 @@ static void UpdateInput(float deltaTime)
     g_gamepadConnected = XInputGetState(0, &state) == ERROR_SUCCESS;
     if (g_gamepadConnected)
     {
+        const BOOL startDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_START) != 0;
         const BOOL backDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK) != 0;
         const BOOL dpadDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0;
         const BOOL testButtonsDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0 &&
@@ -828,6 +954,24 @@ static void UpdateInput(float deltaTime)
         const float leftY = NormalizeStick(state.Gamepad.sThumbLY);
         const float rightX = NormalizeStick(state.Gamepad.sThumbRX);
         const float rightY = NormalizeStick(state.Gamepad.sThumbRY);
+
+        if (g_screen != GAME_PLAYING)
+        {
+            if (g_screen == GAME_PAUSED && startDown && !g_startWasDown)
+                g_screen = GAME_PLAYING;
+            else
+                UpdateMenuInput(&state);
+            g_startWasDown = startDown;
+            return;
+        }
+        if (startDown && !g_startWasDown)
+        {
+            g_screen = GAME_PAUSED;
+            g_menuSelection = 0;
+            g_startWasDown = startDown;
+            return;
+        }
+        g_startWasDown = startDown;
 
         if (backDown && !g_backWasDown)
         {
@@ -857,10 +1001,9 @@ static void UpdateInput(float deltaTime)
         input.yaw = ((state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f) -
                     ((state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f);
 
-        if (state.Gamepad.wButtons & XINPUT_GAMEPAD_START)
-            g_running = FALSE;
     }
 
+    if (g_screen != GAME_PLAYING) return;
     if (FlightScenario_IsActive(&g_flightScenario))
         FlightScenario_BuildInput(&g_flightScenario, flight, &input);
     g_lastFlightInput = input;
@@ -939,6 +1082,19 @@ static void RenderScene(const FlightState* flight, const XMMATRIX& view,
 
 static void RenderFrame()
 {
+    if (g_screen == GAME_MAIN_MENU)
+    {
+        g_device->SetRenderTarget(0, g_renderTarget);
+        g_device->SetDepthStencilSurface(NULL);
+        g_device->Clear(0, NULL, D3DCLEAR_TARGET, g_clearColor, 1.0f, 0);
+        g_device->SetRenderState(D3DRS_ZENABLE, FALSE);
+        g_device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+        RenderMenu();
+        g_device->SynchronizeToPresentationInterval();
+        g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
+        g_device->Swap(g_frontBuffer, NULL);
+        return;
+    }
     const FlightState* flight = Flight_GetState();
     const float forwardX = sinf(flight->yaw) * cosf(flight->pitch);
     const float forwardY = sinf(flight->pitch);
@@ -1010,8 +1166,15 @@ static void RenderFrame()
     g_device->SetPixelShader(g_postPixelShader);
     g_device->SetTexture(0, g_sceneResolveTexture);
     g_device->DrawPrimitiveUP(D3DPT_RECTLIST, 1, postRectCorners, 2 * sizeof(FLOAT));
-    RenderHud(flight);
-    RenderDevHud(flight);
+    if (g_screen == GAME_PLAYING)
+    {
+        RenderHud(flight);
+        RenderDevHud(flight);
+    }
+    else
+    {
+        RenderMenu();
+    }
     g_device->SynchronizeToPresentationInterval();
     g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
     g_device->Swap(g_frontBuffer, NULL);
