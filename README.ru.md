@@ -6,7 +6,7 @@
 
 ![Язык: C](https://img.shields.io/badge/language-C-00599C?logo=c&logoColor=white)
 ![Платформа: Xbox 360](https://img.shields.io/badge/platform-Xbox%20360-107C10?logo=xbox&logoColor=white)
-![Рендерер: Xenos](https://img.shields.io/badge/renderer-Xenos-4B0082)
+![Рендерер: Direct3D9X](https://img.shields.io/badge/renderer-Direct3D9X-4B0082)
 
 ## Возможности
 
