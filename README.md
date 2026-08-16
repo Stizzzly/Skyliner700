@@ -59,7 +59,7 @@ Building this project requires a **properly licensed Microsoft Xbox 360 XDK** wi
 
 The supported runtime target is an official Xbox 360 development kit. Build the `Release | Xbox 360` configuration in Visual Studio and deploy the generated `.xex` together with the `assets` directory to the devkit.
 
-The executable may run on a modified JTAG/RGH retail console, but that configuration is untested and unsupported. This project does not provide instructions, files, or guarantees for bypassing platform security; use legitimate development hardware and software.
+The executable may run on a modified JTAG/RGH/BadUpdate/BadAvatar retail console, but that configuration is untested and unsupported. This project does not provide instructions, files, or guarantees for bypassing platform security; use legitimate development hardware and software.
 
 ## Technology
 
