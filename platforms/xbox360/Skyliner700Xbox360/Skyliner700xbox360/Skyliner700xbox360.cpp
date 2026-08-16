@@ -423,12 +423,12 @@ static void RenderHud(const FlightState* flight)
     int count = 0;
     while (headingDegrees < 0.0f) headingDegrees += 360.0f;
     while (headingDegrees >= 360.0f) headingDegrees -= 360.0f;
-    sprintf_s(speed, sizeof(speed), "SPD %03d KMH", (int)(flight->speed * 3.6f + 0.5f));
-    sprintf_s(altitude, sizeof(altitude), "ALT %04d M", (int)(flight->altitude + 0.5f));
-    sprintf_s(pitch, sizeof(pitch), "PIT %+03d", (int)(flight->pitch * 57.2957795f + (flight->pitch >= 0.0f ? 0.5f : -0.5f)));
-    sprintf_s(bank, sizeof(bank), "BNK %+03d", (int)(flight->roll * 57.2957795f + (flight->roll >= 0.0f ? 0.5f : -0.5f)));
-    sprintf_s(heading, sizeof(heading), "HDG %03d", (int)(headingDegrees + 0.5f));
-    sprintf_s(throttle, sizeof(throttle), "THR %03d", (int)(flight->throttle * 100.0f + 0.5f));
+    sprintf(speed, "SPD %03d KMH", (int)(flight->speed * 3.6f + 0.5f));
+    sprintf(altitude, "ALT %04d M", (int)(flight->altitude + 0.5f));
+    sprintf(pitch, "PIT %+03d", (int)(flight->pitch * 57.2957795f + (flight->pitch >= 0.0f ? 0.5f : -0.5f)));
+    sprintf(bank, "BNK %+03d", (int)(flight->roll * 57.2957795f + (flight->roll >= 0.0f ? 0.5f : -0.5f)));
+    sprintf(heading, "HDG %03d", (int)(headingDegrees + 0.5f));
+    sprintf(throttle, "THR %03d", (int)(flight->throttle * 100.0f + 0.5f));
     AddHudQuad(vertices, &count, 10.0f, 10.0f, 178.0f, 106.0f, panel);
     AddHudText(vertices, &count, 16.0f, 15.0f, speed, text);
     AddHudText(vertices, &count, 16.0f, 30.0f, altitude, text);
