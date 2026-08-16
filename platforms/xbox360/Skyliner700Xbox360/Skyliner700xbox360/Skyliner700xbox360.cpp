@@ -895,9 +895,10 @@ static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, cons
     g_device->SetPixelShaderConstantF(1, textured, 1);
     g_device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
     g_device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
     g_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
     g_device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MAXANISOTROPY, 16);
     g_device->SetStreamSource(0, g_terrainBuffer, 0, sizeof(TerrainVertex));
     g_device->SetTexture(0, g_terrainGrassTexture);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, TERRAIN_VERTEX_COUNT / 3);
@@ -927,9 +928,10 @@ static void RenderScene(const FlightState* flight, const XMMATRIX& view,
     g_device->SetPixelShader(g_planePixelShader);
     g_device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
     g_device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
-    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_ANISOTROPIC);
     g_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
     g_device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MAXANISOTROPY, 16);
     g_device->SetTexture(0, g_planeTexture);
     g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
