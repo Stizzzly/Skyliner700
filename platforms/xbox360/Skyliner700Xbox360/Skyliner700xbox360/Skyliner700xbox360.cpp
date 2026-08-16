@@ -12,6 +12,7 @@
 #define TERRAIN_STEP (TERRAIN_SIZE / TERRAIN_CELLS)
 #define TERRAIN_VERTEX_COUNT (TERRAIN_CELLS * TERRAIN_CELLS * 6)
 #define AIRPORT_VERTEX_COUNT 12
+#define HANGAR_VERTEX_COUNT 90
 
 typedef struct TerrainVertex
 {
@@ -49,6 +50,7 @@ static D3DVertexShader* g_planeVertexShader = NULL;
 static D3DPixelShader* g_planePixelShader = NULL;
 static D3DVertexBuffer* g_terrainBuffer = NULL;
 static D3DVertexBuffer* g_airportBuffer = NULL;
+static D3DVertexBuffer* g_hangarBuffer = NULL;
 static D3DVertexDeclaration* g_terrainDeclaration = NULL;
 static D3DVertexShader* g_terrainVertexShader = NULL;
 static D3DPixelShader* g_terrainPixelShader = NULL;
@@ -495,6 +497,16 @@ static TerrainVertex MakeAirportVertex(float x, float z, DWORD color)
     return vertex;
 }
 
+static TerrainVertex MakeHangarVertex(float x, float y, float z,
+                                      float nx, float ny, float nz, DWORD color)
+{
+    TerrainVertex vertex;
+    vertex.x = x; vertex.y = y; vertex.z = z;
+    vertex.nx = nx; vertex.ny = ny; vertex.nz = nz;
+    vertex.color = color;
+    return vertex;
+}
+
 static void AddAirportQuad(TerrainVertex* vertices, int* index,
                            float x0, float z0, float x1, float z1, DWORD color)
 {
@@ -504,6 +516,33 @@ static void AddAirportQuad(TerrainVertex* vertices, int* index,
     vertices[(*index)++] = MakeAirportVertex(x0, z0, color);
     vertices[(*index)++] = MakeAirportVertex(x1, z1, color);
     vertices[(*index)++] = MakeAirportVertex(x1, z0, color);
+}
+
+static void AddHangarQuad(TerrainVertex* vertices, int* index,
+                          float x0, float y0, float z0, float x1, float y1, float z1,
+                          float nx, float ny, float nz, DWORD color)
+{
+    vertices[(*index)++] = MakeHangarVertex(x0, y0, z0, nx, ny, nz, color);
+    vertices[(*index)++] = MakeHangarVertex(x0, y1, z1, nx, ny, nz, color);
+    vertices[(*index)++] = MakeHangarVertex(x1, y1, z1, nx, ny, nz, color);
+    vertices[(*index)++] = MakeHangarVertex(x0, y0, z0, nx, ny, nz, color);
+    vertices[(*index)++] = MakeHangarVertex(x1, y1, z1, nx, ny, nz, color);
+    vertices[(*index)++] = MakeHangarVertex(x1, y0, z0, nx, ny, nz, color);
+}
+
+static void AddHangarBox(TerrainVertex* vertices, int* index, float x, float z,
+                         float halfWidth, float halfDepth, float height)
+{
+    const float y = Terrain_GetSurfaceHeight(x, z) + 0.02f;
+    const float x0 = x - halfWidth, x1 = x + halfWidth;
+    const float z0 = z - halfDepth, z1 = z + halfDepth;
+    const DWORD wall = D3DCOLOR_XRGB(178, 181, 176);
+    const DWORD roof = D3DCOLOR_XRGB(62, 74, 82);
+    AddHangarQuad(vertices, index, x0, y + height, z0, x1, y + height, z1, 0.0f, 1.0f, 0.0f, roof);
+    AddHangarQuad(vertices, index, x0, y, z0, x1, y + height, z0, 0.0f, 0.0f, -1.0f, wall);
+    AddHangarQuad(vertices, index, x1, y, z0, x1, y + height, z1, 1.0f, 0.0f, 0.0f, wall);
+    AddHangarQuad(vertices, index, x1, y, z1, x0, y + height, z1, 0.0f, 0.0f, 1.0f, wall);
+    AddHangarQuad(vertices, index, x0, y, z1, x0, y + height, z0, -1.0f, 0.0f, 0.0f, wall);
 }
 
 static HRESULT CreateTerrain()
@@ -570,6 +609,20 @@ static HRESULT CreateTerrain()
     AddAirportQuad(vertices, &index, -15.0f, -300.0f, 15.0f, 300.0f, D3DCOLOR_XRGB(64, 68, 72));
     AddAirportQuad(vertices, &index, 24.0f, -65.0f, 95.0f, 30.0f, D3DCOLOR_XRGB(71, 75, 78));
     g_airportBuffer->Unlock();
+    vertices = NULL;
+    lockedBuffer = NULL;
+
+    result = g_device->CreateVertexBuffer(sizeof(TerrainVertex) * HANGAR_VERTEX_COUNT, D3DUSAGE_WRITEONLY,
+                                          0, D3DPOOL_MANAGED, &g_hangarBuffer, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_hangarBuffer->Lock(0, 0, (void**)&vertices, 0);
+    if (FAILED(result)) goto fail;
+    lockedBuffer = g_hangarBuffer;
+    index = 0;
+    AddHangarBox(vertices, &index, 58.0f, -30.0f, 13.0f, 18.0f, 10.0f);
+    AddHangarBox(vertices, &index, 58.0f, 18.0f, 13.0f, 16.0f, 9.0f);
+    AddHangarBox(vertices, &index, 88.0f, -8.0f, 9.0f, 12.0f, 7.0f);
+    g_hangarBuffer->Unlock();
     vertices = NULL;
     lockedBuffer = NULL;
 
@@ -661,6 +714,8 @@ static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, cons
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, TERRAIN_VERTEX_COUNT / 3);
     g_device->SetStreamSource(0, g_airportBuffer, 0, sizeof(TerrainVertex));
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, AIRPORT_VERTEX_COUNT / 3);
+    g_device->SetStreamSource(0, g_hangarBuffer, 0, sizeof(TerrainVertex));
+    g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, HANGAR_VERTEX_COUNT / 3);
 }
 
 static void RenderScene(const FlightState* flight, const XMMATRIX& view,
@@ -761,6 +816,7 @@ static void DestroyRenderer()
     if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
     if (g_tilingRenderTarget) { g_tilingRenderTarget->Release(); g_tilingRenderTarget = NULL; }
     if (g_renderTarget) { g_renderTarget->Release(); g_renderTarget = NULL; }
+    if (g_hangarBuffer) { g_hangarBuffer->Release(); g_hangarBuffer = NULL; }
     if (g_airportBuffer) { g_airportBuffer->Release(); g_airportBuffer = NULL; }
     if (g_terrainBuffer) { g_terrainBuffer->Release(); g_terrainBuffer = NULL; }
     if (g_terrainDeclaration) { g_terrainDeclaration->Release(); g_terrainDeclaration = NULL; }
