@@ -504,6 +504,12 @@ static void RenderHud(const FlightState* flight)
     AddHudText(vertices, &count, 16.0f, 60.0f, bank, text);
     AddHudText(vertices, &count, 16.0f, 75.0f, heading, text);
     AddHudText(vertices, &count, 16.0f, 90.0f, throttle, text);
+    if (g_freeCamera)
+    {
+        AddHudQuad(vertices, &count, (float)g_renderWidth - 126.0f, 10.0f,
+                   (float)g_renderWidth - 10.0f, 35.0f, panel);
+        AddHudText(vertices, &count, (float)g_renderWidth - 120.0f, 15.0f, "CAM FREE", text);
+    }
 
     g_device->SetTexture(0, NULL);
     g_device->SetVertexDeclaration(g_hudDeclaration);
@@ -854,15 +860,14 @@ static void SetFreeCameraFromChase(const FlightState* flight)
     g_freeCameraY = flight->y - forwardY * 18.0f + 6.0f;
     g_freeCameraZ = flight->z - forwardZ * 18.0f;
     g_freeCameraYaw = flight->yaw;
-    g_freeCameraPitch = -0.20f;
+    g_freeCameraPitch = -0.08f;
 }
 
 static void UpdateFreeCamera(float deltaTime, float moveX, float moveY, float lookX, float lookY)
 {
     const float lookSpeed = 1.8f;
-    const float moveSpeed = 55.0f;
+    const float moveSpeed = 70.0f;
     float forwardX;
-    float forwardY;
     float forwardZ;
     float rightX;
     float rightZ;
@@ -870,13 +875,13 @@ static void UpdateFreeCamera(float deltaTime, float moveX, float moveY, float lo
     g_freeCameraYaw += lookX * lookSpeed * deltaTime;
     g_freeCameraPitch = ClampCameraPitch(g_freeCameraPitch + lookY * lookSpeed * deltaTime);
     forwardX = sinf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
-    forwardY = sinf(g_freeCameraPitch);
     forwardZ = -cosf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
     rightX = cosf(g_freeCameraYaw);
     rightZ = sinf(g_freeCameraYaw);
     g_freeCameraX += (rightX * moveX + forwardX * moveY) * moveSpeed * deltaTime;
-    g_freeCameraY += forwardY * moveY * moveSpeed * deltaTime;
     g_freeCameraZ += (rightZ * moveX + forwardZ * moveY) * moveSpeed * deltaTime;
+    if (g_freeCameraY < Terrain_GetSurfaceHeight(g_freeCameraX, g_freeCameraZ) + 2.0f)
+        g_freeCameraY = Terrain_GetSurfaceHeight(g_freeCameraX, g_freeCameraZ) + 2.0f;
 }
 
 static void StartGameFromMenu()
