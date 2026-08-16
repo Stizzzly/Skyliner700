@@ -254,6 +254,20 @@
     <ClInclude Include="..\..\..\..\model\plane.h" />
   </ItemGroup>
   <ItemGroup>
+    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\plane_livery.dds">
+      <DeploymentLocation>assets\plane_livery.dds</DeploymentLocation>
+    </DeploymentContent>
+    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\terrain_grass.dds">
+      <DeploymentLocation>assets\terrain_grass.dds</DeploymentLocation>
+    </DeploymentContent>
+    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\runway_asphalt.dds">
+      <DeploymentLocation>assets\runway_asphalt.dds</DeploymentLocation>
+    </DeploymentContent>
+    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\sky_clouds.dds">
+      <DeploymentLocation>assets\sky_clouds.dds</DeploymentLocation>
+    </DeploymentContent>
+  </ItemGroup>
+  <ItemGroup>
     <ClCompile Include="Skyliner700xbox360.cpp" />
     <ClCompile Include="..\..\..\..\game\flight.c">
       <CompileAs>CompileAsC</CompileAs>

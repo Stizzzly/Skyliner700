@@ -19,6 +19,7 @@ typedef struct TerrainVertex
     float x, y, z;
     float nx, ny, nz;
     DWORD color;
+    float u, v;
 } TerrainVertex;
 
 typedef struct HudVertex
@@ -44,6 +45,9 @@ static D3DSurface* g_tilingRenderTarget = NULL;
 static D3DSurface* g_depthStencil = NULL;
 static D3DTexture* g_frontBuffer = NULL;
 static D3DTexture* g_sceneResolveTexture = NULL;
+static D3DTexture* g_planeTexture = NULL;
+static D3DTexture* g_terrainGrassTexture = NULL;
+static D3DTexture* g_runwayTexture = NULL;
 static D3DVertexBuffer* g_planeBuffer = NULL;
 static D3DVertexDeclaration* g_planeDeclaration = NULL;
 static D3DVertexShader* g_planeVertexShader = NULL;
@@ -63,29 +67,33 @@ static D3DPixelShader* g_hudPixelShader = NULL;
 
 static const char* g_vertexShaderSource =
 "float4x4 WVP : register(c0);"
-"struct IN { float4 position : POSITION; };"
-"struct OUT { float4 position : POSITION; };"
-"OUT main(IN input) { OUT output; output.position = mul(WVP, input.position); return output; }";
+"struct IN { float4 position : POSITION; float2 uv : TEXCOORD0; };"
+"struct OUT { float4 position : POSITION; float2 uv : TEXCOORD0; };"
+"OUT main(IN input) { OUT output; output.position = mul(WVP, input.position); output.uv = input.uv; return output; }";
 
 static const char* g_pixelShaderSource =
-"float4 main() : COLOR { return float4(0.95, 0.97, 1.0, 1.0); }";
+"sampler PlaneSampler : register(s0);"
+"struct IN { float2 uv : TEXCOORD0; };"
+"float4 main(IN input) : COLOR { return tex2D(PlaneSampler, input.uv); }";
 
 static const char* g_terrainVertexShaderSource =
 "float4x4 WVP : register(c0);"
 "float4 CameraPosition : register(c4);"
 "float4 SunDirection : register(c5);"
-"struct IN { float4 position : POSITION; float3 normal : NORMAL; float4 color : COLOR0; };"
-"struct OUT { float4 position : POSITION; float4 color : COLOR0; float fog : TEXCOORD0; };"
+"struct IN { float4 position : POSITION; float3 normal : NORMAL; float4 color : COLOR0; float2 uv : TEXCOORD0; };"
+"struct OUT { float4 position : POSITION; float4 color : COLOR0; float2 uv : TEXCOORD0; float fog : TEXCOORD1; };"
 "OUT main(IN input) {"
 " OUT output; float light = 0.48 + 0.52 * saturate(dot(input.normal, SunDirection.xyz));"
 " float distanceToCamera = length(CameraPosition.xyz - input.position.xyz);"
-" output.position = mul(WVP, input.position); output.color = input.color * light;"
+" output.position = mul(WVP, input.position); output.color = input.color * light; output.uv = input.uv;"
 " output.fog = saturate((distanceToCamera - 360.0) / 760.0); return output; }";
 
 static const char* g_terrainPixelShaderSource =
 "float4 FogColor : register(c0);"
-"struct IN { float4 color : COLOR0; float fog : TEXCOORD0; };"
-"float4 main(IN input) : COLOR { return lerp(input.color, FogColor, input.fog); }";
+"float TextureAmount : register(c1);"
+"sampler TerrainSampler : register(s0);"
+"struct IN { float4 color : COLOR0; float2 uv : TEXCOORD0; float fog : TEXCOORD1; };"
+"float4 main(IN input) : COLOR { float4 surface = lerp(input.color, tex2D(TerrainSampler, input.uv) * input.color, TextureAmount); return lerp(surface, FogColor, input.fog); }";
 
 static const char* g_postVertexShaderSource =
 "struct IN { float2 position : POSITION; };"
@@ -225,8 +233,9 @@ static HRESULT CreateRenderer()
 
 static HRESULT CreateAircraft()
 {
-    D3DVERTEXELEMENT9 elements[2] = {
-        { 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 }, D3DDECL_END()
+    D3DVERTEXELEMENT9 elements[3] = {
+        { 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+        { 0, 12, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 }, D3DDECL_END()
     };
     ID3DXBuffer* vertexCode = NULL;
     ID3DXBuffer* pixelCode = NULL;
@@ -254,6 +263,8 @@ static HRESULT CreateAircraft()
     if (FAILED(result)) goto fail;
     memcpy(vertices, GetPlaneVertices(), GetPlaneVertexCount() * GetPlaneVertexStride());
     g_planeBuffer->Unlock();
+    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\plane_livery.dds", &g_planeTexture);
+    if (FAILED(result)) goto fail;
     g_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
     if (vertexCode) vertexCode->Release();
     if (pixelCode) pixelCode->Release();
@@ -481,10 +492,12 @@ static TerrainVertex MakeTerrainVertex(float x, float z)
     vertex.color = D3DCOLOR_XRGB((int)(72.0f + tint * 28.0f),
                                  (int)(102.0f + tint * 48.0f),
                                  (int)(51.0f + tint * 23.0f));
+    vertex.u = (x + TERRAIN_SIZE * 0.5f) / 35.0f;
+    vertex.v = (z + TERRAIN_SIZE * 0.5f) / 35.0f;
     return vertex;
 }
 
-static TerrainVertex MakeAirportVertex(float x, float z, DWORD color)
+static TerrainVertex MakeAirportVertex(float x, float z, float u, float v, DWORD color)
 {
     TerrainVertex vertex;
     vertex.x = x;
@@ -494,6 +507,8 @@ static TerrainVertex MakeAirportVertex(float x, float z, DWORD color)
     vertex.ny = 1.0f;
     vertex.nz = 0.0f;
     vertex.color = color;
+    vertex.u = u;
+    vertex.v = v;
     return vertex;
 }
 
@@ -504,18 +519,20 @@ static TerrainVertex MakeHangarVertex(float x, float y, float z,
     vertex.x = x; vertex.y = y; vertex.z = z;
     vertex.nx = nx; vertex.ny = ny; vertex.nz = nz;
     vertex.color = color;
+    vertex.u = 0.0f; vertex.v = 0.0f;
     return vertex;
 }
 
 static void AddAirportQuad(TerrainVertex* vertices, int* index,
-                           float x0, float z0, float x1, float z1, DWORD color)
+                           float x0, float z0, float x1, float z1,
+                           float u0, float v0, float u1, float v1, DWORD color)
 {
-    vertices[(*index)++] = MakeAirportVertex(x0, z0, color);
-    vertices[(*index)++] = MakeAirportVertex(x0, z1, color);
-    vertices[(*index)++] = MakeAirportVertex(x1, z1, color);
-    vertices[(*index)++] = MakeAirportVertex(x0, z0, color);
-    vertices[(*index)++] = MakeAirportVertex(x1, z1, color);
-    vertices[(*index)++] = MakeAirportVertex(x1, z0, color);
+    vertices[(*index)++] = MakeAirportVertex(x0, z0, u0, v0, color);
+    vertices[(*index)++] = MakeAirportVertex(x0, z1, u0, v1, color);
+    vertices[(*index)++] = MakeAirportVertex(x1, z1, u1, v1, color);
+    vertices[(*index)++] = MakeAirportVertex(x0, z0, u0, v0, color);
+    vertices[(*index)++] = MakeAirportVertex(x1, z1, u1, v1, color);
+    vertices[(*index)++] = MakeAirportVertex(x1, z0, u1, v0, color);
 }
 
 static void AddHangarQuad(TerrainVertex* vertices, int* index,
@@ -547,10 +564,11 @@ static void AddHangarBox(TerrainVertex* vertices, int* index, float x, float z,
 
 static HRESULT CreateTerrain()
 {
-    D3DVERTEXELEMENT9 elements[4] = {
+    D3DVERTEXELEMENT9 elements[5] = {
         { 0, 0, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
         { 0, 12, D3DDECLTYPE_FLOAT3, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_NORMAL, 0 },
-        { 0, 24, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 }, D3DDECL_END()
+        { 0, 24, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
+        { 0, 28, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_TEXCOORD, 0 }, D3DDECL_END()
     };
     ID3DXBuffer* vertexCode = NULL;
     ID3DXBuffer* pixelCode = NULL;
@@ -606,8 +624,8 @@ static HRESULT CreateTerrain()
     if (FAILED(result)) goto fail;
     lockedBuffer = g_airportBuffer;
     index = 0;
-    AddAirportQuad(vertices, &index, -15.0f, -300.0f, 15.0f, 300.0f, D3DCOLOR_XRGB(64, 68, 72));
-    AddAirportQuad(vertices, &index, 24.0f, -65.0f, 95.0f, 30.0f, D3DCOLOR_XRGB(71, 75, 78));
+    AddAirportQuad(vertices, &index, -15.0f, -300.0f, 15.0f, 300.0f, 0.0f, 0.0f, 1.0f, 24.0f, D3DCOLOR_XRGB(220, 220, 220));
+    AddAirportQuad(vertices, &index, 24.0f, -65.0f, 95.0f, 30.0f, 0.0f, 0.0f, 2.5f, 3.0f, D3DCOLOR_XRGB(200, 200, 200));
     g_airportBuffer->Unlock();
     vertices = NULL;
     lockedBuffer = NULL;
@@ -625,6 +643,11 @@ static HRESULT CreateTerrain()
     g_hangarBuffer->Unlock();
     vertices = NULL;
     lockedBuffer = NULL;
+
+    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\terrain_grass.dds", &g_terrainGrassTexture);
+    if (FAILED(result)) goto fail;
+    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\runway_asphalt.dds", &g_runwayTexture);
+    if (FAILED(result)) goto fail;
 
     if (vertexCode) vertexCode->Release();
     if (pixelCode) pixelCode->Release();
@@ -696,6 +719,8 @@ static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, cons
     float cameraPosition[4];
     const float sunDirection[4] = { -0.35f, 0.82f, -0.45f, 0.0f };
     const float fogColor[4] = { 0.32f, 0.66f, 0.86f, 1.0f };
+    const float textured[4] = { 1.0f, 0.0f, 0.0f, 0.0f };
+    const float untextured[4] = { 0.0f, 0.0f, 0.0f, 0.0f };
 
     eyeComponents.v = eye;
     cameraPosition[0] = eyeComponents.f[0];
@@ -710,10 +735,20 @@ static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, cons
     g_device->SetVertexShaderConstantF(4, cameraPosition, 1);
     g_device->SetVertexShaderConstantF(5, sunDirection, 1);
     g_device->SetPixelShaderConstantF(0, fogColor, 1);
+    g_device->SetPixelShaderConstantF(1, textured, 1);
+    g_device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+    g_device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
     g_device->SetStreamSource(0, g_terrainBuffer, 0, sizeof(TerrainVertex));
+    g_device->SetTexture(0, g_terrainGrassTexture);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, TERRAIN_VERTEX_COUNT / 3);
     g_device->SetStreamSource(0, g_airportBuffer, 0, sizeof(TerrainVertex));
+    g_device->SetTexture(0, g_runwayTexture);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, AIRPORT_VERTEX_COUNT / 3);
+    g_device->SetPixelShaderConstantF(1, untextured, 1);
+    g_device->SetTexture(0, g_terrainGrassTexture);
     g_device->SetStreamSource(0, g_hangarBuffer, 0, sizeof(TerrainVertex));
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, HANGAR_VERTEX_COUNT / 3);
 }
@@ -733,6 +768,12 @@ static void RenderScene(const FlightState* flight, const XMMATRIX& view,
     g_device->SetStreamSource(0, g_planeBuffer, 0, GetPlaneVertexStride());
     g_device->SetVertexShader(g_planeVertexShader);
     g_device->SetPixelShader(g_planePixelShader);
+    g_device->SetSamplerState(0, D3DSAMP_ADDRESSU, D3DTADDRESS_WRAP);
+    g_device->SetSamplerState(0, D3DSAMP_ADDRESSV, D3DTADDRESS_WRAP);
+    g_device->SetSamplerState(0, D3DSAMP_MINFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MAGFILTER, D3DTEXF_LINEAR);
+    g_device->SetSamplerState(0, D3DSAMP_MIPFILTER, D3DTEXF_LINEAR);
+    g_device->SetTexture(0, g_planeTexture);
     g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
 }
@@ -811,6 +852,9 @@ static void DestroyRenderer()
     if (g_hudDeclaration) { g_hudDeclaration->Release(); g_hudDeclaration = NULL; }
     if (g_hudVertexShader) { g_hudVertexShader->Release(); g_hudVertexShader = NULL; }
     if (g_hudPixelShader) { g_hudPixelShader->Release(); g_hudPixelShader = NULL; }
+    if (g_runwayTexture) { g_runwayTexture->Release(); g_runwayTexture = NULL; }
+    if (g_terrainGrassTexture) { g_terrainGrassTexture->Release(); g_terrainGrassTexture = NULL; }
+    if (g_planeTexture) { g_planeTexture->Release(); g_planeTexture = NULL; }
     if (g_sceneResolveTexture) { g_sceneResolveTexture->Release(); g_sceneResolveTexture = NULL; }
     if (g_frontBuffer) { g_frontBuffer->Release(); g_frontBuffer = NULL; }
     if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
