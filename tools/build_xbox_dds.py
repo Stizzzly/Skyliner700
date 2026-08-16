@@ -24,26 +24,28 @@ DDSCAPS_COMPLEX = 0x00000008
 DDSCAPS_MIPMAP = 0x00400000
 
 
-def compressed_level(image: Image.Image, pixel_format: str) -> tuple[bytes, bytes]:
-    """Return a DDS header and compressed payload for one mip level."""
+def encode_level(image: Image.Image, pixel_format: str | None) -> tuple[bytes, bytes]:
+    """Return a DDS header and payload for one mip level."""
     stream = io.BytesIO()
-    image.save(stream, format="DDS", pixel_format=pixel_format)
+    options = {"pixel_format": pixel_format} if pixel_format else {}
+    image.save(stream, format="DDS", **options)
     data = stream.getvalue()
     if data[:4] != b"DDS ":
         raise RuntimeError("Pillow did not produce a DDS file")
     return data[:128], data[128:]
 
 
-def build_mipped_dds(source_name: str, output_name: str, size: int, pixel_format: str) -> None:
+def build_mipped_dds(source_name: str, output_name: str, size: int, pixel_format: str | None,
+                     upscale_filter: Image.Resampling = Image.Resampling.LANCZOS) -> None:
     source = Image.open(SOURCE / source_name).convert("RGBA")
-    base = source.resize((size, size), Image.Resampling.LANCZOS)
+    base = source.resize((size, size), upscale_filter)
     levels: list[bytes] = []
     image = base
     header: bytes | None = None
     mip_count = 0
 
     while True:
-        level_header, payload = compressed_level(image, pixel_format)
+        level_header, payload = encode_level(image, pixel_format)
         if header is None:
             header = bytearray(level_header)
         levels.append(payload)
@@ -61,12 +63,15 @@ def build_mipped_dds(source_name: str, output_name: str, size: int, pixel_format
 
     destination = OUTPUT / output_name
     destination.write_bytes(header + b"".join(levels))
-    print(f"{destination.relative_to(ROOT)}: {size}x{size}, {pixel_format}, {mip_count} mips, {destination.stat().st_size} bytes")
+    format_name = pixel_format or "A8R8G8B8"
+    print(f"{destination.relative_to(ROOT)}: {size}x{size}, {format_name}, {mip_count} mips, {destination.stat().st_size} bytes")
 
 
 def main() -> None:
     OUTPUT.mkdir(parents=True, exist_ok=True)
-    build_mipped_dds("plane_livery.bmp", "plane_livery.dds", 1024, "DXT1")
+    # The livery has fine red pinstripes and panel lines.  Keep it raw so DXT1
+    # 4x4 colour blocks cannot soften them; nearest-neighbour preserves its UV atlas.
+    build_mipped_dds("plane_livery.bmp", "plane_livery.dds", 1024, None, Image.Resampling.NEAREST)
     build_mipped_dds("terrain_grass.bmp", "terrain_grass.dds", 512, "DXT1")
     build_mipped_dds("runway_asphalt.bmp", "runway_asphalt.dds", 512, "DXT1")
     build_mipped_dds("sky_clouds.bmp", "sky_clouds.dds", 512, "DXT5")

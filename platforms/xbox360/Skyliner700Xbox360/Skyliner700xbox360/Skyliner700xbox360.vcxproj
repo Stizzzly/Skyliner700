@@ -254,18 +254,22 @@
     <ClInclude Include="..\..\..\..\model\plane.h" />
   </ItemGroup>
   <ItemGroup>
-    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\plane_livery.dds">
+    <None Include="$(SkylinerRoot)assets\xbox\plane_livery.dds">
+      <DeploymentContent>true</DeploymentContent>
       <DeploymentLocation>assets\plane_livery.dds</DeploymentLocation>
-    </DeploymentContent>
-    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\terrain_grass.dds">
+    </None>
+    <None Include="$(SkylinerRoot)assets\xbox\terrain_grass.dds">
+      <DeploymentContent>true</DeploymentContent>
       <DeploymentLocation>assets\terrain_grass.dds</DeploymentLocation>
-    </DeploymentContent>
-    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\runway_asphalt.dds">
+    </None>
+    <None Include="$(SkylinerRoot)assets\xbox\runway_asphalt.dds">
+      <DeploymentContent>true</DeploymentContent>
       <DeploymentLocation>assets\runway_asphalt.dds</DeploymentLocation>
-    </DeploymentContent>
-    <DeploymentContent Include="$(SkylinerRoot)assets\xbox\sky_clouds.dds">
+    </None>
+    <None Include="$(SkylinerRoot)assets\xbox\sky_clouds.dds">
+      <DeploymentContent>true</DeploymentContent>
       <DeploymentLocation>assets\sky_clouds.dds</DeploymentLocation>
-    </DeploymentContent>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Skyliner700xbox360.cpp" />
