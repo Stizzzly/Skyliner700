@@ -23,6 +23,7 @@ static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
 static BOOL g_running = TRUE;
 static BOOL g_gamepadConnected = FALSE;
+static BOOL g_msaaEnabled = FALSE;
 static DWORD g_clearColor = D3DCOLOR_XRGB(82, 169, 220);
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
@@ -94,16 +95,29 @@ static HRESULT CreateRenderer()
     presentation.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 
     result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
-                                  D3DCREATE_HARDWARE_VERTEXPROCESSING,
-                                  &presentation, &g_device);
+                                 D3DCREATE_HARDWARE_VERTEXPROCESSING,
+                                 &presentation, &g_device);
+    g_msaaEnabled = SUCCEEDED(result);
+    if (FAILED(result))
+    {
+        /* Some devkit video modes cannot place this presentation surface in
+           EDRAM with 4x samples.  Keep the game bootable rather than entering
+           the debugger; the XDK will still expose 4x where the mode permits. */
+        OutputDebugStringA("Skyliner700: 4x MSAA unavailable; retrying without MSAA.\n");
+        presentation.MultiSampleType = D3DMULTISAMPLE_NONE;
+        result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
+                                     D3DCREATE_HARDWARE_VERTEXPROCESSING,
+                                     &presentation, &g_device);
+        g_msaaEnabled = FALSE;
+    }
     if (FAILED(result))
     {
         OutputDebugStringA("Skyliner700: CreateDevice failed.\n");
-        DebugBreak();
         return E_FAIL;
     }
 
-    OutputDebugStringA("Skyliner700: Xbox renderer initialized.\n");
+    OutputDebugStringA(g_msaaEnabled ? "Skyliner700: Xbox renderer initialized with 4x MSAA.\n"
+                                     : "Skyliner700: Xbox renderer initialized without MSAA.\n");
     return S_OK;
 }
 
