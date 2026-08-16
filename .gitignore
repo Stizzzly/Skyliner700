@@ -20,3 +20,7 @@
 
 # Local XDK sample used only as an API reference; never distribute it.
 /TiledResources/
+/PredicatedTiling/
+/PredicatedTilingFullDepth/
+/PredicatedTilingMRT/
+/PredicatedTilingVPos/

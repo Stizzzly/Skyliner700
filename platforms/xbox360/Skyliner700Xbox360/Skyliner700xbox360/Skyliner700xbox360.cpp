@@ -28,9 +28,12 @@ static UINT g_renderWidth = 0;
 static UINT g_renderHeight = 0;
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
+static BOOL g_tiledMsaaEnabled = FALSE;
 static D3DSurface* g_renderTarget = NULL;
+static D3DSurface* g_tilingRenderTarget = NULL;
 static D3DSurface* g_depthStencil = NULL;
 static D3DTexture* g_frontBuffer = NULL;
+static D3DTexture* g_sceneResolveTexture = NULL;
 static D3DVertexBuffer* g_planeBuffer = NULL;
 static D3DVertexDeclaration* g_planeDeclaration = NULL;
 static D3DVertexShader* g_planeVertexShader = NULL;
@@ -40,6 +43,9 @@ static D3DVertexBuffer* g_airportBuffer = NULL;
 static D3DVertexDeclaration* g_terrainDeclaration = NULL;
 static D3DVertexShader* g_terrainVertexShader = NULL;
 static D3DPixelShader* g_terrainPixelShader = NULL;
+static D3DVertexDeclaration* g_postDeclaration = NULL;
+static D3DVertexShader* g_postVertexShader = NULL;
+static D3DPixelShader* g_postPixelShader = NULL;
 
 static const char* g_vertexShaderSource =
 "float4x4 WVP : register(c0);"
@@ -66,6 +72,17 @@ static const char* g_terrainPixelShaderSource =
 "float4 FogColor : register(c0);"
 "struct IN { float4 color : COLOR0; float fog : TEXCOORD0; };"
 "float4 main(IN input) : COLOR { return lerp(input.color, FogColor, input.fog); }";
+
+static const char* g_postVertexShaderSource =
+"struct IN { float2 position : POSITION; };"
+"struct OUT { float4 position : POSITION; float2 uv : TEXCOORD0; };"
+"OUT main(IN input) { OUT output; output.position = float4(input.position, 0.0, 1.0);"
+" output.uv = float2(input.position.x * 0.5 + 0.5, 0.5 - input.position.y * 0.5); return output; }";
+
+static const char* g_postPixelShaderSource =
+"sampler SceneSampler : register(s0);"
+"struct IN { float2 uv : TEXCOORD0; };"
+"float4 main(IN input) : COLOR { return tex2D(SceneSampler, input.uv); }";
 
 static HRESULT CreateRenderer()
 {
@@ -109,25 +126,59 @@ static HRESULT CreateRenderer()
         return E_FAIL;
     }
 
-    /* This explicit target/front-buffer chain is the foundation for the
-       upcoming EDRAM tiled MSAA path.  It is the XDK pattern: draw into EDRAM,
-       resolve into UMA memory, then Swap the resolved texture. */
+    /* Predicated tiling uses one 1280x256 4x-MSAA EDRAM tile.  BeginTiling
+       records the normal scene once and EndTiling replays it for the three
+       screen rects, resolving each into g_sceneResolveTexture in UMA memory. */
+    ZeroMemory(&surfaceParameters, sizeof(surfaceParameters));
+    result = g_device->CreateTexture(g_renderWidth, g_renderHeight, 1, 0,
+                                     presentation.FrontBufferFormat, D3DPOOL_DEFAULT,
+                                     &g_frontBuffer, NULL);
+    if (FAILED(result)) return result;
+    result = g_device->CreateTexture(g_renderWidth, g_renderHeight, 1, 0,
+                                     D3DFMT_X8R8G8B8, D3DPOOL_DEFAULT,
+                                     &g_sceneResolveTexture, NULL);
+    if (FAILED(result)) return result;
+
+    if (g_renderWidth == 1280 && g_renderHeight == 720)
+    {
+        const UINT tileWidth = XGNextMultiple(1280, GPU_EDRAM_TILE_WIDTH_4X);
+        const UINT tileHeight = XGNextMultiple(256, GPU_EDRAM_TILE_HEIGHT_4X);
+        const UINT textureAlignedWidth = XGNextMultiple(tileWidth, GPU_TEXTURE_TILE_DIMENSION);
+        const UINT textureAlignedHeight = XGNextMultiple(tileHeight, GPU_TEXTURE_TILE_DIMENSION);
+
+        surfaceParameters.Base = 0;
+        result = g_device->CreateRenderTarget(textureAlignedWidth, textureAlignedHeight,
+                                              D3DFMT_X8R8G8B8, D3DMULTISAMPLE_4_SAMPLES,
+                                              0, FALSE, &g_tilingRenderTarget, &surfaceParameters);
+        if (FAILED(result)) return result;
+        surfaceParameters.Base = g_tilingRenderTarget->Size / GPU_EDRAM_TILE_SIZE;
+        surfaceParameters.HierarchicalZBase = 0;
+        result = g_device->CreateDepthStencilSurface(textureAlignedWidth, textureAlignedHeight,
+                                                      D3DFMT_D24S8, D3DMULTISAMPLE_4_SAMPLES,
+                                                      0, FALSE, &g_depthStencil, &surfaceParameters);
+        if (FAILED(result)) return result;
+        g_tiledMsaaEnabled = TRUE;
+        g_device->SetScreenExtentQueryMode(D3DSEQM_PRECLIP);
+    }
+
+    /* This target aliases EDRAM after tiling has resolved.  It receives the
+       full resolved scene through a one-rectangle post pass before Swap. */
     ZeroMemory(&surfaceParameters, sizeof(surfaceParameters));
     result = g_device->CreateRenderTarget(g_renderWidth, g_renderHeight, D3DFMT_X8R8G8B8,
                                           D3DMULTISAMPLE_NONE, 0, FALSE,
                                           &g_renderTarget, &surfaceParameters);
     if (FAILED(result)) return result;
-    surfaceParameters.Base = GPU_EDRAM_TILES / 2;
-    result = g_device->CreateDepthStencilSurface(g_renderWidth, g_renderHeight, D3DFMT_D24S8,
-                                                  D3DMULTISAMPLE_NONE, 0, FALSE,
-                                                  &g_depthStencil, &surfaceParameters);
-    if (FAILED(result)) return result;
-    result = g_device->CreateTexture(g_renderWidth, g_renderHeight, 1, 0,
-                                     presentation.FrontBufferFormat, D3DPOOL_DEFAULT,
-                                     &g_frontBuffer, NULL);
-    if (FAILED(result)) return result;
+    if (!g_tiledMsaaEnabled)
+    {
+        surfaceParameters.Base = GPU_EDRAM_TILES / 2;
+        result = g_device->CreateDepthStencilSurface(g_renderWidth, g_renderHeight, D3DFMT_D24S8,
+                                                      D3DMULTISAMPLE_NONE, 0, FALSE,
+                                                      &g_depthStencil, &surfaceParameters);
+        if (FAILED(result)) return result;
+    }
 
-    OutputDebugStringA("Skyliner700: Xbox explicit EDRAM resolve path initialized.\n");
+    OutputDebugStringA(g_tiledMsaaEnabled ? "Skyliner700: 720p 4x MSAA predicated tiling initialized.\n"
+                                           : "Skyliner700: Xbox explicit EDRAM resolve path initialized.\n");
     return S_OK;
 }
 
@@ -163,6 +214,41 @@ static HRESULT CreateAircraft()
     memcpy(vertices, GetPlaneVertices(), GetPlaneVertexCount() * GetPlaneVertexStride());
     g_planeBuffer->Unlock();
     g_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return S_OK;
+fail:
+    if (errors) OutputDebugStringA((char*)errors->GetBufferPointer());
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return result;
+}
+
+static HRESULT CreatePostProcess()
+{
+    D3DVERTEXELEMENT9 elements[2] = {
+        { 0, 0, D3DDECLTYPE_FLOAT2, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 }, D3DDECL_END()
+    };
+    ID3DXBuffer* vertexCode = NULL;
+    ID3DXBuffer* pixelCode = NULL;
+    ID3DXBuffer* errors = NULL;
+    HRESULT result;
+
+    result = D3DXCompileShader(g_postVertexShaderSource, (UINT)strlen(g_postVertexShaderSource), NULL, NULL,
+                               "main", "vs_2_0", 0, &vertexCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexShader((DWORD*)vertexCode->GetBufferPointer(), &g_postVertexShader);
+    if (FAILED(result)) goto fail;
+    vertexCode->Release(); vertexCode = NULL;
+    result = D3DXCompileShader(g_postPixelShaderSource, (UINT)strlen(g_postPixelShaderSource), NULL, NULL,
+                               "main", "ps_2_0", 0, &pixelCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreatePixelShader((DWORD*)pixelCode->GetBufferPointer(), &g_postPixelShader);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexDeclaration(elements, &g_postDeclaration);
+    if (FAILED(result)) goto fail;
     if (vertexCode) vertexCode->Release();
     if (pixelCode) pixelCode->Release();
     if (errors) errors->Release();
@@ -389,6 +475,25 @@ static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, cons
     g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, AIRPORT_VERTEX_COUNT / 3);
 }
 
+static void RenderScene(const FlightState* flight, const XMMATRIX& view,
+                        const XMMATRIX& projection, const XMVECTOR& eye)
+{
+    const XMMATRIX rotation = XMMatrixRotationRollPitchYaw(flight->pitch, -flight->yaw, flight->roll);
+    const XMMATRIX translation = XMMatrixTranslation(flight->x, flight->y, flight->z);
+    const XMMATRIX world = rotation * translation;
+    const XMMATRIX wvp = world * view * projection;
+
+    g_device->SetRenderState(D3DRS_ZENABLE, TRUE);
+    g_device->SetRenderState(D3DRS_ZWRITEENABLE, TRUE);
+    RenderTerrain(view, projection, eye);
+    g_device->SetVertexDeclaration(g_planeDeclaration);
+    g_device->SetStreamSource(0, g_planeBuffer, 0, GetPlaneVertexStride());
+    g_device->SetVertexShader(g_planeVertexShader);
+    g_device->SetPixelShader(g_planePixelShader);
+    g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
+    g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
+}
+
 static void RenderFrame()
 {
     const FlightState* flight = Flight_GetState();
@@ -408,28 +513,50 @@ static void RenderFrame()
         0.0f
     };
     XMVECTOR up = { 0.0f, 1.0f, 0.0f, 0.0f };
-    XMMATRIX rotation = XMMatrixRotationRollPitchYaw(flight->pitch, -flight->yaw, flight->roll);
-    XMMATRIX translation = XMMatrixTranslation(flight->x, flight->y, flight->z);
-    XMMATRIX world = rotation * translation;
-    XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
-    XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, 16.0f / 9.0f, 0.1f, 1200.0f);
-    XMMATRIX wvp = world * view * projection;
-    // Xbox 360 D3D uses command-buffer operations rather than PC-style
-    // BeginScene/EndScene error returns; this frame ends in Resolve + Swap.
-    g_device->SetRenderTarget(0, g_renderTarget);
+    const XMMATRIX view = XMMatrixLookAtLH(eye, target, up);
+    const XMMATRIX projection = XMMatrixPerspectiveFovLH(XM_PIDIV4, 16.0f / 9.0f, 0.1f, 1200.0f);
+    const D3DVECTOR4 clearColor = { 0.32f, 0.66f, 0.86f, 1.0f };
+    const D3DRECT tileRects[3] = {
+        { 0, 0, 1280, 256 },
+        { 0, 256, 1280, 512 },
+        { 0, 512, 1280, 720 }
+    };
+    const FLOAT postRectCorners[] = { -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f };
+
+    g_device->SetRenderTarget(0, g_tiledMsaaEnabled ? g_tilingRenderTarget : g_renderTarget);
     g_device->SetRenderTarget(1, NULL);
     g_device->SetRenderTarget(2, NULL);
     g_device->SetRenderTarget(3, NULL);
     g_device->SetDepthStencilSurface(g_depthStencil);
-    g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER,
-                    g_clearColor, 1.0f, 0);
-    RenderTerrain(view, projection, eye);
-    g_device->SetVertexDeclaration(g_planeDeclaration);
-    g_device->SetStreamSource(0, g_planeBuffer, 0, GetPlaneVertexStride());
-    g_device->SetVertexShader(g_planeVertexShader);
-    g_device->SetPixelShader(g_planePixelShader);
-    g_device->SetVertexShaderConstantF(0, (float*)&wvp, 4);
-    g_device->DrawPrimitive(D3DPT_TRIANGLELIST, 0, GetPlaneVertexCount() / 3);
+
+    if (g_tiledMsaaEnabled)
+    {
+        g_device->BeginTiling(0, 3, tileRects, &clearColor, 1.0f, 0);
+        g_device->BeginZPass(0);
+        RenderScene(flight, view, projection, eye);
+        g_device->EndZPass();
+        g_device->EndTiling(D3DRESOLVE_RENDERTARGET0 | D3DRESOLVE_ALLFRAGMENTS |
+                             D3DRESOLVE_CLEARRENDERTARGET | D3DRESOLVE_CLEARDEPTHSTENCIL,
+                             NULL, g_sceneResolveTexture, &clearColor, 1.0f, 0, NULL);
+    }
+    else
+    {
+        g_device->Clear(0, NULL, D3DCLEAR_TARGET | D3DCLEAR_ZBUFFER, g_clearColor, 1.0f, 0);
+        RenderScene(flight, view, projection, eye);
+        g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_sceneResolveTexture, NULL, 0, 0, NULL, 1.0f, 0, NULL);
+    }
+
+    /* Post pass is deliberately just a texture copy for now.  It gives tiled
+       rendering a full-screen EDRAM target where HUD and later effects belong. */
+    g_device->SetRenderTarget(0, g_renderTarget);
+    g_device->SetDepthStencilSurface(NULL);
+    g_device->SetRenderState(D3DRS_ZENABLE, FALSE);
+    g_device->SetRenderState(D3DRS_ZWRITEENABLE, FALSE);
+    g_device->SetVertexDeclaration(g_postDeclaration);
+    g_device->SetVertexShader(g_postVertexShader);
+    g_device->SetPixelShader(g_postPixelShader);
+    g_device->SetTexture(0, g_sceneResolveTexture);
+    g_device->DrawPrimitiveUP(D3DPT_RECTLIST, 1, postRectCorners, 2 * sizeof(FLOAT));
     g_device->SynchronizeToPresentationInterval();
     g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
     g_device->Swap(g_frontBuffer, NULL);
@@ -437,14 +564,19 @@ static void RenderFrame()
 
 static void DestroyRenderer()
 {
+    if (g_sceneResolveTexture) { g_sceneResolveTexture->Release(); g_sceneResolveTexture = NULL; }
     if (g_frontBuffer) { g_frontBuffer->Release(); g_frontBuffer = NULL; }
     if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
+    if (g_tilingRenderTarget) { g_tilingRenderTarget->Release(); g_tilingRenderTarget = NULL; }
     if (g_renderTarget) { g_renderTarget->Release(); g_renderTarget = NULL; }
     if (g_airportBuffer) { g_airportBuffer->Release(); g_airportBuffer = NULL; }
     if (g_terrainBuffer) { g_terrainBuffer->Release(); g_terrainBuffer = NULL; }
     if (g_terrainDeclaration) { g_terrainDeclaration->Release(); g_terrainDeclaration = NULL; }
     if (g_terrainVertexShader) { g_terrainVertexShader->Release(); g_terrainVertexShader = NULL; }
     if (g_terrainPixelShader) { g_terrainPixelShader->Release(); g_terrainPixelShader = NULL; }
+    if (g_postDeclaration) { g_postDeclaration->Release(); g_postDeclaration = NULL; }
+    if (g_postVertexShader) { g_postVertexShader->Release(); g_postVertexShader = NULL; }
+    if (g_postPixelShader) { g_postPixelShader->Release(); g_postPixelShader = NULL; }
     if (g_planeBuffer) { g_planeBuffer->Release(); g_planeBuffer = NULL; }
     if (g_planeDeclaration) { g_planeDeclaration->Release(); g_planeDeclaration = NULL; }
     if (g_planeVertexShader) { g_planeVertexShader->Release(); g_planeVertexShader = NULL; }
@@ -471,6 +603,11 @@ void __cdecl main()
         return;
     }
     if (FAILED(CreateTerrain()))
+    {
+        DestroyRenderer();
+        return;
+    }
+    if (FAILED(CreatePostProcess()))
     {
         DestroyRenderer();
         return;

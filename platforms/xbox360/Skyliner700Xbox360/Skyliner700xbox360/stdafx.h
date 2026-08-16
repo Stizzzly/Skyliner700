@@ -6,6 +6,7 @@
 #pragma once
 
 #include <xtl.h>
+#include <xgraphics.h>
 #include <xboxmath.h>
 #include <d3dx9.h>
 
