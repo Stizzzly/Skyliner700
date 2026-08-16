@@ -3,6 +3,7 @@
 
 #include "stdafx.h"
 #include <stdio.h>
+#include <string.h>
 #include "game/flight.h"
 #include "model/plane.h"
 #include "world/terrain.h"
@@ -114,6 +115,21 @@ static const char* g_hudVertexShaderSource =
 static const char* g_hudPixelShaderSource =
 "struct IN { float4 color : COLOR0; };"
 "float4 main(IN input) : COLOR { return input.color; }";
+
+static HRESULT LoadXboxTexture(const char* gamePath, D3DTexture** texture)
+{
+    HRESULT result = D3DXCreateTextureFromFileA(g_device, gamePath, texture);
+    if (FAILED(result))
+    {
+        if (strcmp(gamePath, "game:\\assets\\plane_livery.dds") == 0)
+            OutputDebugStringA("Skyliner700: missing or invalid game:\\assets\\plane_livery.dds\n");
+        else if (strcmp(gamePath, "game:\\assets\\terrain_grass.dds") == 0)
+            OutputDebugStringA("Skyliner700: missing or invalid game:\\assets\\terrain_grass.dds\n");
+        else if (strcmp(gamePath, "game:\\assets\\runway_asphalt.dds") == 0)
+            OutputDebugStringA("Skyliner700: missing or invalid game:\\assets\\runway_asphalt.dds\n");
+    }
+    return result;
+}
 
 static HRESULT CreateRenderer()
 {
@@ -263,7 +279,7 @@ static HRESULT CreateAircraft()
     if (FAILED(result)) goto fail;
     memcpy(vertices, GetPlaneVertices(), GetPlaneVertexCount() * GetPlaneVertexStride());
     g_planeBuffer->Unlock();
-    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\plane_livery.dds", &g_planeTexture);
+    result = LoadXboxTexture("game:\\assets\\plane_livery.dds", &g_planeTexture);
     if (FAILED(result)) goto fail;
     g_device->SetRenderState(D3DRS_CULLMODE, D3DCULL_NONE);
     if (vertexCode) vertexCode->Release();
@@ -644,9 +660,9 @@ static HRESULT CreateTerrain()
     vertices = NULL;
     lockedBuffer = NULL;
 
-    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\terrain_grass.dds", &g_terrainGrassTexture);
+    result = LoadXboxTexture("game:\\assets\\terrain_grass.dds", &g_terrainGrassTexture);
     if (FAILED(result)) goto fail;
-    result = D3DXCreateTextureFromFileA(g_device, "game:\\assets\\runway_asphalt.dds", &g_runwayTexture);
+    result = LoadXboxTexture("game:\\assets\\runway_asphalt.dds", &g_runwayTexture);
     if (FAILED(result)) goto fail;
 
     if (vertexCode) vertexCode->Release();
@@ -891,11 +907,13 @@ void __cdecl main()
         return;
     if (FAILED(CreateAircraft()))
     {
+        OutputDebugStringA("Skyliner700: aircraft initialization failed.\n");
         DestroyRenderer();
         return;
     }
     if (FAILED(CreateTerrain()))
     {
+        OutputDebugStringA("Skyliner700: terrain initialization failed.\n");
         DestroyRenderer();
         return;
     }
