@@ -2,6 +2,7 @@
 // This deliberately contains no PC Win32 code and no runtime D3DX compiler.
 
 #include "stdafx.h"
+#include <stdio.h>
 #include "game/flight.h"
 #include "model/plane.h"
 #include "world/terrain.h"
