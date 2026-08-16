@@ -19,6 +19,14 @@ typedef struct TerrainVertex
     DWORD color;
 } TerrainVertex;
 
+typedef struct HudVertex
+{
+    float x, y, z, w;
+    DWORD color;
+} HudVertex;
+
+#define HUD_MAX_VERTICES 12288
+
 static Direct3D* g_d3d = NULL;
 static D3DDevice* g_device = NULL;
 static BOOL g_running = TRUE;
@@ -46,6 +54,9 @@ static D3DPixelShader* g_terrainPixelShader = NULL;
 static D3DVertexDeclaration* g_postDeclaration = NULL;
 static D3DVertexShader* g_postVertexShader = NULL;
 static D3DPixelShader* g_postPixelShader = NULL;
+static D3DVertexDeclaration* g_hudDeclaration = NULL;
+static D3DVertexShader* g_hudVertexShader = NULL;
+static D3DPixelShader* g_hudPixelShader = NULL;
 
 static const char* g_vertexShaderSource =
 "float4x4 WVP : register(c0);"
@@ -83,6 +94,15 @@ static const char* g_postPixelShaderSource =
 "sampler SceneSampler : register(s0);"
 "struct IN { float2 uv : TEXCOORD0; };"
 "float4 main(IN input) : COLOR { return tex2D(SceneSampler, input.uv); }";
+
+static const char* g_hudVertexShaderSource =
+"struct IN { float4 position : POSITION; float4 color : COLOR0; };"
+"struct OUT { float4 position : POSITION; float4 color : COLOR0; };"
+"OUT main(IN input) { OUT output; output.position = input.position; output.color = input.color; return output; }";
+
+static const char* g_hudPixelShaderSource =
+"struct IN { float4 color : COLOR0; };"
+"float4 main(IN input) : COLOR { return input.color; }";
 
 static HRESULT CreateRenderer()
 {
@@ -277,6 +297,155 @@ fail:
     if (pixelCode) pixelCode->Release();
     if (errors) errors->Release();
     return result;
+}
+
+static HRESULT CreateHud()
+{
+    D3DVERTEXELEMENT9 elements[3] = {
+        { 0, 0, D3DDECLTYPE_FLOAT4, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_POSITION, 0 },
+        { 0, 16, D3DDECLTYPE_D3DCOLOR, D3DDECLMETHOD_DEFAULT, D3DDECLUSAGE_COLOR, 0 },
+        D3DDECL_END()
+    };
+    ID3DXBuffer* vertexCode = NULL;
+    ID3DXBuffer* pixelCode = NULL;
+    ID3DXBuffer* errors = NULL;
+    HRESULT result;
+
+    result = D3DXCompileShader(g_hudVertexShaderSource, (UINT)strlen(g_hudVertexShaderSource), NULL, NULL,
+                               "main", "vs_2_0", 0, &vertexCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexShader((DWORD*)vertexCode->GetBufferPointer(), &g_hudVertexShader);
+    if (FAILED(result)) goto fail;
+    vertexCode->Release(); vertexCode = NULL;
+    result = D3DXCompileShader(g_hudPixelShaderSource, (UINT)strlen(g_hudPixelShaderSource), NULL, NULL,
+                               "main", "ps_2_0", 0, &pixelCode, &errors, NULL);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreatePixelShader((DWORD*)pixelCode->GetBufferPointer(), &g_hudPixelShader);
+    if (FAILED(result)) goto fail;
+    result = g_device->CreateVertexDeclaration(elements, &g_hudDeclaration);
+    if (FAILED(result)) goto fail;
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return S_OK;
+fail:
+    if (errors) OutputDebugStringA((char*)errors->GetBufferPointer());
+    if (vertexCode) vertexCode->Release();
+    if (pixelCode) pixelCode->Release();
+    if (errors) errors->Release();
+    return result;
+}
+
+static const unsigned char g_hudDigits[10][7] = {
+    {14,17,19,21,25,17,14}, {4,12,4,4,4,4,14}, {14,17,1,2,4,8,31},
+    {30,1,1,14,1,1,30}, {2,6,10,18,31,2,2}, {31,16,16,30,1,1,30},
+    {14,16,16,30,17,17,14}, {31,1,2,4,8,8,8}, {14,17,17,14,17,17,14},
+    {14,17,17,15,1,1,14}
+};
+
+static const unsigned char* HudGlyphFor(char character)
+{
+    static const unsigned char blank[7] = {0,0,0,0,0,0,0};
+    static const unsigned char minus[7] = {0,0,0,31,0,0,0};
+    static const unsigned char plus[7] = {0,4,4,31,4,4,0};
+    static const unsigned char a[7] = {14,17,17,31,17,17,17};
+    static const unsigned char b[7] = {30,17,17,30,17,17,30};
+    static const unsigned char d[7] = {30,17,17,17,17,17,30};
+    static const unsigned char e[7] = {31,16,16,30,16,16,31};
+    static const unsigned char g[7] = {14,17,16,23,17,17,14};
+    static const unsigned char h[7] = {17,17,17,31,17,17,17};
+    static const unsigned char i[7] = {31,4,4,4,4,4,31};
+    static const unsigned char k[7] = {17,18,20,24,20,18,17};
+    static const unsigned char l[7] = {16,16,16,16,16,16,31};
+    static const unsigned char m[7] = {17,27,21,21,17,17,17};
+    static const unsigned char n[7] = {17,25,21,19,17,17,17};
+    static const unsigned char p[7] = {30,17,17,30,16,16,16};
+    static const unsigned char r[7] = {30,17,17,30,20,18,17};
+    static const unsigned char s[7] = {15,16,16,14,1,1,30};
+    static const unsigned char t[7] = {31,4,4,4,4,4,4};
+    if (character >= '0' && character <= '9') return g_hudDigits[character - '0'];
+    switch (character)
+    {
+        case '-': return minus; case '+': return plus; case 'A': return a; case 'B': return b;
+        case 'D': return d; case 'E': return e; case 'G': return g; case 'H': return h;
+        case 'I': return i; case 'K': return k; case 'L': return l; case 'M': return m;
+        case 'N': return n; case 'P': return p; case 'R': return r; case 'S': return s;
+        case 'T': return t; default: return blank;
+    }
+}
+
+static void AddHudQuad(HudVertex* vertices, int* count, float x0, float y0, float x1, float y1, DWORD color)
+{
+    HudVertex vertex;
+    const float left = x0 * 2.0f / g_renderWidth - 1.0f;
+    const float right = x1 * 2.0f / g_renderWidth - 1.0f;
+    const float top = 1.0f - y0 * 2.0f / g_renderHeight;
+    const float bottom = 1.0f - y1 * 2.0f / g_renderHeight;
+    if (*count + 6 > HUD_MAX_VERTICES) return;
+    vertex.z = 0.0f; vertex.w = 1.0f; vertex.color = color;
+    vertex.x = left; vertex.y = top; vertices[(*count)++] = vertex;
+    vertex.x = left; vertex.y = bottom; vertices[(*count)++] = vertex;
+    vertex.x = right; vertex.y = bottom; vertices[(*count)++] = vertex;
+    vertex.x = left; vertex.y = top; vertices[(*count)++] = vertex;
+    vertex.x = right; vertex.y = bottom; vertices[(*count)++] = vertex;
+    vertex.x = right; vertex.y = top; vertices[(*count)++] = vertex;
+}
+
+static void AddHudText(HudVertex* vertices, int* count, float x, float y, const char* text, DWORD color)
+{
+    const float pixel = 2.0f;
+    int character;
+    for (character = 0; text[character] != '\0'; ++character)
+    {
+        const unsigned char* glyph = HudGlyphFor(text[character]);
+        int row;
+        for (row = 0; row < 7; ++row)
+        {
+            int column;
+            for (column = 0; column < 5; ++column)
+            {
+                if (glyph[row] & (1 << (4 - column)))
+                    AddHudQuad(vertices, count, x + column * pixel, y + row * pixel,
+                               x + (column + 1) * pixel, y + (row + 1) * pixel, color);
+            }
+        }
+        x += pixel * 6.0f;
+    }
+}
+
+static void RenderHud(const FlightState* flight)
+{
+    HudVertex vertices[HUD_MAX_VERTICES];
+    char speed[24], altitude[24], pitch[24], bank[24], heading[24], throttle[24];
+    const DWORD panel = D3DCOLOR_ARGB(155, 4, 12, 20);
+    const DWORD text = D3DCOLOR_ARGB(240, 220, 245, 255);
+    float headingDegrees = flight->yaw * 57.2957795f;
+    int count = 0;
+    while (headingDegrees < 0.0f) headingDegrees += 360.0f;
+    while (headingDegrees >= 360.0f) headingDegrees -= 360.0f;
+    sprintf_s(speed, sizeof(speed), "SPD %03d KMH", (int)(flight->speed * 3.6f + 0.5f));
+    sprintf_s(altitude, sizeof(altitude), "ALT %04d M", (int)(flight->altitude + 0.5f));
+    sprintf_s(pitch, sizeof(pitch), "PIT %+03d", (int)(flight->pitch * 57.2957795f + (flight->pitch >= 0.0f ? 0.5f : -0.5f)));
+    sprintf_s(bank, sizeof(bank), "BNK %+03d", (int)(flight->roll * 57.2957795f + (flight->roll >= 0.0f ? 0.5f : -0.5f)));
+    sprintf_s(heading, sizeof(heading), "HDG %03d", (int)(headingDegrees + 0.5f));
+    sprintf_s(throttle, sizeof(throttle), "THR %03d", (int)(flight->throttle * 100.0f + 0.5f));
+    AddHudQuad(vertices, &count, 10.0f, 10.0f, 178.0f, 106.0f, panel);
+    AddHudText(vertices, &count, 16.0f, 15.0f, speed, text);
+    AddHudText(vertices, &count, 16.0f, 30.0f, altitude, text);
+    AddHudText(vertices, &count, 16.0f, 45.0f, pitch, text);
+    AddHudText(vertices, &count, 16.0f, 60.0f, bank, text);
+    AddHudText(vertices, &count, 16.0f, 75.0f, heading, text);
+    AddHudText(vertices, &count, 16.0f, 90.0f, throttle, text);
+
+    g_device->SetTexture(0, NULL);
+    g_device->SetVertexDeclaration(g_hudDeclaration);
+    g_device->SetVertexShader(g_hudVertexShader);
+    g_device->SetPixelShader(g_hudPixelShader);
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    g_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    g_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    g_device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, count / 3, vertices, sizeof(HudVertex));
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
 }
 
 static float Clamp01(float value)
@@ -575,6 +744,7 @@ static void RenderFrame()
     g_device->SetPixelShader(g_postPixelShader);
     g_device->SetTexture(0, g_sceneResolveTexture);
     g_device->DrawPrimitiveUP(D3DPT_RECTLIST, 1, postRectCorners, 2 * sizeof(FLOAT));
+    RenderHud(flight);
     g_device->SynchronizeToPresentationInterval();
     g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
     g_device->Swap(g_frontBuffer, NULL);
@@ -582,6 +752,9 @@ static void RenderFrame()
 
 static void DestroyRenderer()
 {
+    if (g_hudDeclaration) { g_hudDeclaration->Release(); g_hudDeclaration = NULL; }
+    if (g_hudVertexShader) { g_hudVertexShader->Release(); g_hudVertexShader = NULL; }
+    if (g_hudPixelShader) { g_hudPixelShader->Release(); g_hudPixelShader = NULL; }
     if (g_sceneResolveTexture) { g_sceneResolveTexture->Release(); g_sceneResolveTexture = NULL; }
     if (g_frontBuffer) { g_frontBuffer->Release(); g_frontBuffer = NULL; }
     if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
@@ -626,6 +799,11 @@ void __cdecl main()
         return;
     }
     if (FAILED(CreatePostProcess()))
+    {
+        DestroyRenderer();
+        return;
+    }
+    if (FAILED(CreateHud()))
     {
         DestroyRenderer();
         return;
