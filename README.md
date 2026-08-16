@@ -1,100 +1,75 @@
-# Skyliner 700
+# Skyliner 700 — Xbox 360 Edition
 
 [Русская версия](README.ru.md)
 
-A small flight simulator written in pure **C** with a **Direct3D 9 fixed-function** renderer. It uses no game engine, C++, D3DX, or shaders, and is designed to remain compatible with older DirectX 9 hardware.
+This branch contains the native **Xbox 360** port of Skyliner 700: a small flight simulator written in C. It is a separate codebase branch from the Windows release (`main`) and is built as an Xbox 360 `.xex`.
 
 ![Language: C](https://img.shields.io/badge/language-C-00599C?logo=c&logoColor=white)
-![Graphics: Direct3D 9](https://img.shields.io/badge/graphics-Direct3D%209-107C10)
-![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4?logo=windows&logoColor=white)
+![Platform: Xbox 360](https://img.shields.io/badge/platform-Xbox%20360-107C10?logo=xbox&logoColor=white)
+![Renderer: Xenos](https://img.shields.io/badge/renderer-Xenos-4B0082)
 
 ## Features
 
-- Simplified flight model with thrust, lift, drag, stalls, takeoff, landing, and terrain contact
-- Procedural terrain with hills, a runway, taxiway, and low-poly hangars
-- Textured aircraft, sky dome, scrolling clouds, fog, and HUD
-- Third-person chase camera and free camera
-- Main menu, pause menu, automated test flight, and telemetry mode
-- Deterministic CTest flight-physics tests that run without a window or D3D9
+- Simplified flight model with takeoff, stalls, banking turns, landing, and terrain contact
+- Controller-first Xbox 360 input, main menu, pause menu, HUD, telemetry, automated flight test, and free camera
+- Procedural terrain with hills, runway, taxiway, and low-poly hangars
+- DDS runtime textures: DXT1 terrain, DXT5 clouds, and a 1024×1024 aircraft livery
+- Sky dome, scrolling clouds, fog, anisotropic texture filtering, and 720p rendering
+
+## Xbox 360 enhancements
+
+In addition to the shared game and flight code, this port has an Xbox-specific renderer and presentation path:
+
+- Native 1280×720 rendering with 4× MSAA using the Xenos 10 MB eDRAM through explicit predicated tiling and resolves
+- Gamepad-native controls and menu navigation
+- DDS assets and platform-oriented filtering for sharper terrain and aircraft textures
+- Uses the Xbox 360 GPU and memory architecture directly; it is not the Windows executable running in compatibility mode
 
 ## Controls
 
-| Key | Action |
+| Controller input | Action |
 | --- | --- |
-| `Up` / `Down` | Pitch |
-| `Left` / `Right` | Roll and turn |
-| `Shift` / `Ctrl` | Increase / decrease throttle |
-| `Q` / `E` | Yaw |
-| `R` | Reset to the runway |
-| `C` | Toggle chase and free camera |
-| `W` `A` `S` `D` + mouse | Move and look in free camera |
-| `Page Up` / `Page Down` | Move up / down in free camera |
-| `F5` | Automated takeoff, circuit, and landing test |
-| `F6` | Detailed flight telemetry |
-| `Esc` | Pause menu |
+| Left stick | Pitch and roll |
+| Right stick | Look around in free-camera mode |
+| Left / right trigger | Decrease / increase throttle |
+| Left / right bumper | Yaw |
+| `Back` | Toggle chase and free camera |
+| `D-pad Down` | Toggle detailed telemetry |
+| Press both sticks | Start the automated flight test |
+| `Start` | Open or close the pause menu |
+| `D-pad Up` / `D-pad Down` or left stick | Navigate menus |
+| `A` | Confirm a menu action |
 
-## Downloads
+## Project layout
 
-Get the latest build from [Releases](../../releases).
-
-| Package | Target |
-| --- | --- |
-| `Skyliner700-1.0.0-win32-xp.zip` | Windows XP SP2/SP3 and later 32-bit Windows |
-| `Skyliner700-1.0.0-win64.zip` | 64-bit Windows |
-
-Extract the complete archive before running the game. The `assets` directory must stay next to `Skyliner700.exe`.
-
-## Requirements
-
-- Windows XP SP2/SP3 or newer
-- DirectX 9.0c-compatible GPU with Shader Model 2.0 and 64 MB VRAM
-- 512 MB RAM
-- 1024×768 display
-- 100 MB free storage
-
-The x86 build was validated in a Windows XP SP2 VMware guest. Real Radeon Xpress 200 hardware remains the final performance target.
-
-## Building
-
-Install CMake, Ninja, and MSYS2 MinGW. Run these commands from the repository root.
-
-### Windows x64 (Clang)
-
-```powershell
-C:\msys64\mingw64\bin\cmake.exe --preset clang-release
-C:\msys64\mingw64\bin\cmake.exe --build --preset clang-release
+```
+src/common/        Shared C gameplay: flight model, scripted flight, terrain, aircraft data
+src/win32/         Windows implementation retained for source sharing; not used by the Xbox project
+platforms/xbox360/ Xbox 360 Visual Studio 2010 solution and platform bootstrap
+assets/source/     Editable source artwork
+assets/xbox/       Xbox-ready DDS runtime assets
+tests/             Headless flight-model checks
 ```
 
-Output: `cmake-build-release\Skyliner700.exe`.
+Open the solution at `platforms/xbox360/Skyliner700Xbox360/Skyliner700xbox360.sln`.
 
-### Windows XP x86 (GCC)
+## Building and running
 
-```powershell
-C:\msys64\mingw32\bin\cmake.exe --preset gcc-x86-xp-release
-C:\msys64\mingw32\bin\cmake.exe --build --preset gcc-x86-xp-release
-C:\msys64\mingw32\bin\ctest.exe --preset gcc-x86-xp-release --output-on-failure
-```
+Building this project requires a **properly licensed Microsoft Xbox 360 XDK** with its supported Visual Studio 2010 toolchain. XDK headers, libraries, tools, samples, and deployment files are proprietary and are intentionally not included in this repository.
 
-Output: `cmake-build-gcc-x86-xp-release\Skyliner700.exe`. This build targets `pei-i386`, subsystem version 5.1, and has no D3DX dependency. See [Windows XP notes](docs/windows-xp.md) for deployment details.
+The supported runtime target is an official Xbox 360 development kit. Build the `Release | Xbox 360` configuration in Visual Studio and deploy the generated `.xex` together with the `assets` directory to the devkit.
 
-## Linux
-
-The Windows build should run through Wine with DXVK, which translates D3D9 to Vulkan. Install Wine, DXVK, and the 32-bit Vulkan driver for your GPU, then run the game together with its `assets` directory.
-
-```bash
-WINEPREFIX="$HOME/.wine-skyliner700" wine Skyliner700.exe
-```
+The executable may run on a modified JTAG/RGH retail console, but that configuration is untested and unsupported. This project does not provide instructions, files, or guarantees for bypassing platform security; use legitimate development hardware and software.
 
 ## Technology
 
-- C11
-- Win32 API
-- Direct3D 9 fixed-function pipeline
-- CMake + Ninja
-- CTest
+- C / C++ Xbox 360 application bootstrap
+- Xbox 360 XDK + Visual Studio 2010
+- Xenos renderer with explicit 720p 4× MSAA predicated tiling
+- Shared deterministic flight-model tests
 
 ## License
 
-Licensed under the [MIT License](LICENSE).
+The project source is licensed under the [MIT License](LICENSE). This license does not grant rights to Microsoft XDK components or any other proprietary SDK material.
 
 Project feedback and bug reports are welcome in [Issues](../../issues).

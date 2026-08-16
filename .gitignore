@@ -3,3 +3,24 @@
 /startup_marker.txt
 /debug_init.log
 /dist/
+
+# Visual Studio/XDK user and build artifacts
+*.suo
+*.user
+*.pch
+*.pdb
+*.xex
+*.xdb
+*.xlsp
+/platforms/xbox360/**/Debug/
+/platforms/xbox360/**/Release/
+
+# Local licensed XDK headers used only for platform research.
+/xbox/
+
+# Local XDK sample used only as an API reference; never distribute it.
+/TiledResources/
+/PredicatedTiling/
+/PredicatedTilingFullDepth/
+/PredicatedTilingMRT/
+/PredicatedTilingVPos/

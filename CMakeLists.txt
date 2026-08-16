@@ -8,20 +8,20 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 # the whole project would also pick up CMake's compiler-identification source
 # once a build directory is created inside the project.
 set(SKYLINER_SOURCES
-        main.c
-        game/camera.c
-        game/flight.c
-        game/flight_input.c
-        game/flight_scenario.c
-        world/terrain.c
-        core/window.c
-        model/plane.c
-        render/d3d9/d3d9_device.c
-        render/d3d9/d3d9_matrix.c
-        render/d3d9/d3d9_mesh.c
-        render/d3d9/d3d9_sky.c
-        render/d3d9/d3d9_terrain.c
-        render/d3d9/d3d9_hud.c
+        src/win32/main.c
+        src/win32/game/camera.c
+        src/common/game/flight.c
+        src/common/game/flight_input.c
+        src/common/game/flight_scenario.c
+        src/common/world/terrain.c
+        src/win32/core/window.c
+        src/common/model/plane.c
+        src/win32/render/d3d9/d3d9_device.c
+        src/win32/render/d3d9/d3d9_matrix.c
+        src/win32/render/d3d9/d3d9_mesh.c
+        src/win32/render/d3d9/d3d9_sky.c
+        src/win32/render/d3d9/d3d9_terrain.c
+        src/win32/render/d3d9/d3d9_hud.c
 )
 
 add_executable(${PROJECT_NAME} ${SKYLINER_SOURCES})
@@ -35,11 +35,11 @@ add_custom_command(TARGET ${PROJECT_NAME} POST_BUILD
 
 # Public include directories
 target_include_directories(${PROJECT_NAME} PRIVATE
-        "${CMAKE_SOURCE_DIR}"
-        "${CMAKE_SOURCE_DIR}/core"
-        "${CMAKE_SOURCE_DIR}/model"
-        "${CMAKE_SOURCE_DIR}/render"
-        "${CMAKE_SOURCE_DIR}/render/d3d9"
+        "${CMAKE_SOURCE_DIR}/src/win32"
+        "${CMAKE_SOURCE_DIR}/src/common"
+        "${CMAKE_SOURCE_DIR}/src/win32/core"
+        "${CMAKE_SOURCE_DIR}/src/win32/render"
+        "${CMAKE_SOURCE_DIR}/src/win32/render/d3d9"
 )
 
 if (WIN32)
@@ -52,8 +52,8 @@ endif()
 
 include(CTest)
 if (BUILD_TESTING)
-    add_executable(flight_physics_tests tests/flight_physics_tests.c game/flight.c game/flight_scenario.c world/terrain.c)
-    target_include_directories(flight_physics_tests PRIVATE "${CMAKE_SOURCE_DIR}")
+    add_executable(flight_physics_tests tests/flight_physics_tests.c src/common/game/flight.c src/common/game/flight_scenario.c src/common/world/terrain.c)
+    target_include_directories(flight_physics_tests PRIVATE "${CMAKE_SOURCE_DIR}/src/common")
     target_link_libraries(flight_physics_tests PRIVATE m)
     add_test(NAME flight_physics COMMAND flight_physics_tests)
 endif()
