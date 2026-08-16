@@ -81,6 +81,12 @@ static HRESULT CreateRenderer()
     presentation.BackBufferHeight = min(videoMode.dwDisplayHeight, 720);
     presentation.BackBufferFormat = D3DFMT_X8R8G8B8;
     presentation.BackBufferCount = 1;
+    /* On Xbox 360 this selects the Xenos 4-sample EDRAM path.  The XDK owns
+       the tiled display surface and resolves its tiles when Present is called.
+       BeginTiling/EndTiling are intentionally not used here: they are for a
+       custom off-screen render target, which must replay the scene for each
+       tile and explicitly resolve into a texture before Swap. */
+    presentation.MultiSampleType = D3DMULTISAMPLE_4_SAMPLES;
     presentation.EnableAutoDepthStencil = TRUE;
     presentation.AutoDepthStencilFormat = D3DFMT_D24S8;
     presentation.SwapEffect = D3DSWAPEFFECT_DISCARD;
