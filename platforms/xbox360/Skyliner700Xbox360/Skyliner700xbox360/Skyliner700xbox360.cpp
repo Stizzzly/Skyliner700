@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "game/flight.h"
+#include "game/flight_scenario.h"
 #include "model/plane.h"
 #include "world/terrain.h"
 
@@ -41,6 +42,17 @@ static UINT g_renderHeight = 0;
 static LARGE_INTEGER g_lastTick;
 static float g_secondsPerTick;
 static BOOL g_tiledMsaaEnabled = FALSE;
+static BOOL g_freeCamera = FALSE;
+static BOOL g_backWasDown = FALSE;
+static BOOL g_dpadDownWasDown = FALSE;
+static BOOL g_testButtonsWereDown = FALSE;
+static float g_freeCameraX = 0.0f;
+static float g_freeCameraY = 6.0f;
+static float g_freeCameraZ = 18.0f;
+static float g_freeCameraYaw = 3.14159265f;
+static float g_freeCameraPitch = -0.20f;
+static FlightInput g_lastFlightInput = {0};
+static FlightScenario g_flightScenario;
 static D3DSurface* g_renderTarget = NULL;
 static D3DSurface* g_tilingRenderTarget = NULL;
 static D3DSurface* g_depthStencil = NULL;
@@ -380,8 +392,10 @@ static const unsigned char* HudGlyphFor(char character)
     static const unsigned char plus[7] = {0,4,4,31,4,4,0};
     static const unsigned char a[7] = {14,17,17,31,17,17,17};
     static const unsigned char b[7] = {30,17,17,30,17,17,30};
+    static const unsigned char c[7] = {14,17,16,16,16,17,14};
     static const unsigned char d[7] = {30,17,17,17,17,17,30};
     static const unsigned char e[7] = {31,16,16,30,16,16,31};
+    static const unsigned char f[7] = {31,16,16,30,16,16,16};
     static const unsigned char g[7] = {14,17,16,23,17,17,14};
     static const unsigned char h[7] = {17,17,17,31,17,17,17};
     static const unsigned char i[7] = {31,4,4,4,4,4,31};
@@ -389,18 +403,25 @@ static const unsigned char* HudGlyphFor(char character)
     static const unsigned char l[7] = {16,16,16,16,16,16,31};
     static const unsigned char m[7] = {17,27,21,21,17,17,17};
     static const unsigned char n[7] = {17,25,21,19,17,17,17};
+    static const unsigned char o[7] = {14,17,17,17,17,17,14};
     static const unsigned char p[7] = {30,17,17,30,16,16,16};
     static const unsigned char r[7] = {30,17,17,30,20,18,17};
     static const unsigned char s[7] = {15,16,16,14,1,1,30};
     static const unsigned char t[7] = {31,4,4,4,4,4,4};
+    static const unsigned char u[7] = {17,17,17,17,17,17,14};
+    static const unsigned char v[7] = {17,17,17,17,17,10,4};
+    static const unsigned char w[7] = {17,17,17,21,21,21,10};
     if (character >= '0' && character <= '9') return g_hudDigits[character - '0'];
     switch (character)
     {
         case '-': return minus; case '+': return plus; case 'A': return a; case 'B': return b;
-        case 'D': return d; case 'E': return e; case 'G': return g; case 'H': return h;
+        case 'C': return c; case 'D': return d; case 'E': return e; case 'F': return f;
+        case 'G': return g; case 'H': return h;
         case 'I': return i; case 'K': return k; case 'L': return l; case 'M': return m;
-        case 'N': return n; case 'P': return p; case 'R': return r; case 'S': return s;
-        case 'T': return t; default: return blank;
+        case 'N': return n; case 'O': return o; case 'P': return p; case 'R': return r;
+        case 'S': return s; case 'T': return t; case 'U': return u; case 'V': return v;
+        case 'W': return w;
+        default: return blank;
     }
 }
 
@@ -467,6 +488,51 @@ static void RenderHud(const FlightState* flight)
     AddHudText(vertices, &count, 16.0f, 75.0f, heading, text);
     AddHudText(vertices, &count, 16.0f, 90.0f, throttle, text);
 
+    g_device->SetTexture(0, NULL);
+    g_device->SetVertexDeclaration(g_hudDeclaration);
+    g_device->SetVertexShader(g_hudVertexShader);
+    g_device->SetPixelShader(g_hudPixelShader);
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, TRUE);
+    g_device->SetRenderState(D3DRS_SRCBLEND, D3DBLEND_SRCALPHA);
+    g_device->SetRenderState(D3DRS_DESTBLEND, D3DBLEND_INVSRCALPHA);
+    g_device->DrawPrimitiveUP(D3DPT_TRIANGLELIST, count / 3, vertices, sizeof(HudVertex));
+    g_device->SetRenderState(D3DRS_ALPHABLENDENABLE, FALSE);
+}
+
+static void RenderDevHud(const FlightState* flight)
+{
+    HudVertex vertices[HUD_MAX_VERTICES];
+    char throttle[20], verticalSpeed[20], lift[20], drag[20], ground[20], input[24];
+    const char* status = FlightScenario_Status(&g_flightScenario);
+    const BOOL showStatus = strcmp(status, "TST OFF") != 0;
+    const DWORD panel = D3DCOLOR_ARGB(155, 4, 12, 20);
+    const DWORD text = D3DCOLOR_ARGB(240, 255, 228, 170);
+    float y = 105.0f;
+    int count = 0;
+
+    if (!showStatus && !g_flightScenario.telemetryEnabled) return;
+    AddHudQuad(vertices, &count, 10.0f, 100.0f, 226.0f,
+               g_flightScenario.telemetryEnabled ? 213.0f : 125.0f, panel);
+    if (showStatus)
+    {
+        AddHudText(vertices, &count, 16.0f, y, status, text);
+        y += 15.0f;
+    }
+    if (g_flightScenario.telemetryEnabled)
+    {
+        sprintf(throttle, "THR %03d", (int)(flight->throttle * 100.0f + 0.5f));
+        sprintf(verticalSpeed, "VSP %+03d", (int)(flight->verticalSpeed + (flight->verticalSpeed >= 0.0f ? 0.5f : -0.5f)));
+        sprintf(lift, "LFT %03d", (int)(flight->lift + 0.5f));
+        sprintf(drag, "DRG %03d", (int)(flight->drag + 0.5f));
+        sprintf(ground, "GND %d", flight->onGround ? 1 : 0);
+        sprintf(input, "INP %+.0f%+.0f%+.0f", g_lastFlightInput.pitch, g_lastFlightInput.roll, g_lastFlightInput.yaw);
+        AddHudText(vertices, &count, 16.0f, y, throttle, text); y += 15.0f;
+        AddHudText(vertices, &count, 16.0f, y, verticalSpeed, text); y += 15.0f;
+        AddHudText(vertices, &count, 16.0f, y, lift, text); y += 15.0f;
+        AddHudText(vertices, &count, 16.0f, y, drag, text); y += 15.0f;
+        AddHudText(vertices, &count, 16.0f, y, ground, text); y += 15.0f;
+        AddHudText(vertices, &count, 16.0f, y, input, text);
+    }
     g_device->SetTexture(0, NULL);
     g_device->SetVertexDeclaration(g_hudDeclaration);
     g_device->SetVertexShader(g_hudVertexShader);
@@ -703,28 +769,103 @@ static float GetDeltaTime()
     return deltaTime;
 }
 
+static float ClampCameraPitch(float value)
+{
+    if (value < -1.35f) return -1.35f;
+    if (value > 1.35f) return 1.35f;
+    return value;
+}
+
+static void SetFreeCameraFromChase(const FlightState* flight)
+{
+    const float forwardX = sinf(flight->yaw) * cosf(flight->pitch);
+    const float forwardY = sinf(flight->pitch);
+    const float forwardZ = -cosf(flight->yaw) * cosf(flight->pitch);
+    g_freeCameraX = flight->x - forwardX * 18.0f;
+    g_freeCameraY = flight->y - forwardY * 18.0f + 6.0f;
+    g_freeCameraZ = flight->z - forwardZ * 18.0f;
+    g_freeCameraYaw = flight->yaw;
+    g_freeCameraPitch = -0.20f;
+}
+
+static void UpdateFreeCamera(float deltaTime, float moveX, float moveY, float lookX, float lookY)
+{
+    const float lookSpeed = 1.8f;
+    const float moveSpeed = 55.0f;
+    float forwardX;
+    float forwardY;
+    float forwardZ;
+    float rightX;
+    float rightZ;
+
+    g_freeCameraYaw += lookX * lookSpeed * deltaTime;
+    g_freeCameraPitch = ClampCameraPitch(g_freeCameraPitch + lookY * lookSpeed * deltaTime);
+    forwardX = sinf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
+    forwardY = sinf(g_freeCameraPitch);
+    forwardZ = -cosf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
+    rightX = cosf(g_freeCameraYaw);
+    rightZ = sinf(g_freeCameraYaw);
+    g_freeCameraX += (rightX * moveX + forwardX * moveY) * moveSpeed * deltaTime;
+    g_freeCameraY += forwardY * moveY * moveSpeed * deltaTime;
+    g_freeCameraZ += (rightZ * moveX + forwardZ * moveY) * moveSpeed * deltaTime;
+}
+
 static void UpdateInput(float deltaTime)
 {
     XINPUT_STATE state;
     FlightInput input = {0};
+    const FlightState* flight = Flight_GetState();
     ZeroMemory(&state, sizeof(state));
 
     g_gamepadConnected = XInputGetState(0, &state) == ERROR_SUCCESS;
     if (g_gamepadConnected)
     {
-        // Left stick: pitch and roll. Triggers: throttle. Bumpers: yaw.
-        input.pitch = NormalizeStick(state.Gamepad.sThumbLY);
-        input.roll = NormalizeStick(state.Gamepad.sThumbLX);
+        const BOOL backDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_BACK) != 0;
+        const BOOL dpadDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_DPAD_DOWN) != 0;
+        const BOOL testButtonsDown = (state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_THUMB) != 0 &&
+                                     (state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_THUMB) != 0;
+        const float leftX = NormalizeStick(state.Gamepad.sThumbLX);
+        const float leftY = NormalizeStick(state.Gamepad.sThumbLY);
+        const float rightX = NormalizeStick(state.Gamepad.sThumbRX);
+        const float rightY = NormalizeStick(state.Gamepad.sThumbRY);
+
+        if (backDown && !g_backWasDown)
+        {
+            g_freeCamera = !g_freeCamera;
+            if (g_freeCamera) SetFreeCameraFromChase(flight);
+        }
+        if (dpadDown && !g_dpadDownWasDown)
+            g_flightScenario.telemetryEnabled = !g_flightScenario.telemetryEnabled;
+        if (testButtonsDown && !g_testButtonsWereDown)
+            FlightScenario_Start(&g_flightScenario);
+        g_backWasDown = backDown;
+        g_dpadDownWasDown = dpadDown;
+        g_testButtonsWereDown = testButtonsDown;
+
+        // Chase camera: left stick controls the aircraft.  Free camera:
+        // left stick flies the camera, right stick looks around.
+        if (!g_freeCamera)
+        {
+            input.pitch = leftY;
+            input.roll = leftX;
+        }
+        else
+        {
+            UpdateFreeCamera(deltaTime, leftX, leftY, rightX, rightY);
+        }
         input.throttle = ((float)state.Gamepad.bRightTrigger - (float)state.Gamepad.bLeftTrigger) / 255.0f;
         input.yaw = ((state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f) -
                     ((state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f);
-        input.reset = (state.Gamepad.wButtons & XINPUT_GAMEPAD_A) != 0;
 
         if (state.Gamepad.wButtons & XINPUT_GAMEPAD_START)
             g_running = FALSE;
     }
 
+    if (FlightScenario_IsActive(&g_flightScenario))
+        FlightScenario_BuildInput(&g_flightScenario, flight, &input);
+    g_lastFlightInput = input;
     Flight_Step(&input, deltaTime);
+    FlightScenario_Observe(&g_flightScenario, Flight_GetState(), deltaTime);
 }
 
 static void RenderTerrain(const XMMATRIX& view, const XMMATRIX& projection, const XMVECTOR& eye)
@@ -823,6 +964,16 @@ static void RenderFrame()
     };
     const FLOAT postRectCorners[] = { -1.0f, 1.0f, 1.0f, 1.0f, -1.0f, -1.0f };
 
+    if (g_freeCamera)
+    {
+        const float freeForwardX = sinf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
+        const float freeForwardY = sinf(g_freeCameraPitch);
+        const float freeForwardZ = -cosf(g_freeCameraYaw) * cosf(g_freeCameraPitch);
+        eye = XMVectorSet(g_freeCameraX, g_freeCameraY, g_freeCameraZ, 0.0f);
+        target = XMVectorSet(g_freeCameraX + freeForwardX, g_freeCameraY + freeForwardY,
+                             g_freeCameraZ + freeForwardZ, 0.0f);
+    }
+
     g_device->SetRenderTarget(0, g_tiledMsaaEnabled ? g_tilingRenderTarget : g_renderTarget);
     g_device->SetRenderTarget(1, NULL);
     g_device->SetRenderTarget(2, NULL);
@@ -858,6 +1009,7 @@ static void RenderFrame()
     g_device->SetTexture(0, g_sceneResolveTexture);
     g_device->DrawPrimitiveUP(D3DPT_RECTLIST, 1, postRectCorners, 2 * sizeof(FLOAT));
     RenderHud(flight);
+    RenderDevHud(flight);
     g_device->SynchronizeToPresentationInterval();
     g_device->Resolve(D3DRESOLVE_RENDERTARGET0, NULL, g_frontBuffer, NULL, 0, 0, NULL, 1.0f, 0, NULL);
     g_device->Swap(g_frontBuffer, NULL);
@@ -929,6 +1081,7 @@ void __cdecl main()
     }
 
     Flight_Init();
+    FlightScenario_Init(&g_flightScenario);
     InitTimer();
 
     while (g_running)

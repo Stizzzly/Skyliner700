@@ -250,6 +250,7 @@
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
     <ClInclude Include="..\..\..\..\game\flight.h" />
+    <ClInclude Include="..\..\..\..\game\flight_scenario.h" />
     <ClInclude Include="..\..\..\..\world\terrain.h" />
     <ClInclude Include="..\..\..\..\model\plane.h" />
   </ItemGroup>
@@ -274,6 +275,10 @@
   <ItemGroup>
     <ClCompile Include="Skyliner700xbox360.cpp" />
     <ClCompile Include="..\..\..\..\game\flight.c">
+      <CompileAs>CompileAsC</CompileAs>
+      <PrecompiledHeader>NotUsing</PrecompiledHeader>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\game\flight_scenario.c">
       <CompileAs>CompileAsC</CompileAs>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>

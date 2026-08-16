@@ -3,6 +3,10 @@
 
 #include "flight.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef enum {
     FLIGHT_SCENARIO_IDLE,
     FLIGHT_SCENARIO_RUN,
@@ -35,5 +39,9 @@ void FlightScenario_BuildInput(const FlightScenario* scenario, const FlightState
 void FlightScenario_Observe(FlightScenario* scenario, const FlightState* state, float deltaTime);
 int FlightScenario_IsActive(const FlightScenario* scenario);
 const char* FlightScenario_Status(const FlightScenario* scenario);
+
+#ifdef __cplusplus
+}
+#endif
 
 #endif
