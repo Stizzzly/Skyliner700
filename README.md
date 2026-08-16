@@ -6,7 +6,7 @@ This branch contains the native **Xbox 360** port of Skyliner 700: a small fligh
 
 ![Language: C](https://img.shields.io/badge/language-C-00599C?logo=c&logoColor=white)
 ![Platform: Xbox 360](https://img.shields.io/badge/platform-Xbox%20360-107C10?logo=xbox&logoColor=white)
-![Renderer: Direct3D9Ex](https://img.shields.io/badge/renderer-Direct3D9Ex-4B0082)
+![Renderer: Direct3D9X](https://img.shields.io/badge/renderer-Direct3D9X-4B0082)
 
 ## Features
 
