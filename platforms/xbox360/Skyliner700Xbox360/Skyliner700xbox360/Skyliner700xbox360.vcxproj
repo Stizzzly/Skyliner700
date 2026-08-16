@@ -83,7 +83,7 @@
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
-      <AdditionalIncludeDirectories>$(SkylinerRoot);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SkylinerRoot)src\common;$(SkylinerRoot);%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
   </ItemDefinitionGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Xbox 360'">
@@ -249,10 +249,10 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="stdafx.h" />
-    <ClInclude Include="..\..\..\..\game\flight.h" />
-    <ClInclude Include="..\..\..\..\game\flight_scenario.h" />
-    <ClInclude Include="..\..\..\..\world\terrain.h" />
-    <ClInclude Include="..\..\..\..\model\plane.h" />
+    <ClInclude Include="..\..\..\..\src\common\game\flight.h" />
+    <ClInclude Include="..\..\..\..\src\common\game\flight_scenario.h" />
+    <ClInclude Include="..\..\..\..\src\common\world\terrain.h" />
+    <ClInclude Include="..\..\..\..\src\common\model\plane.h" />
   </ItemGroup>
   <ItemGroup>
     <None Include="$(SkylinerRoot)assets\xbox\plane_livery.dds">
@@ -274,19 +274,19 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Skyliner700xbox360.cpp" />
-    <ClCompile Include="..\..\..\..\game\flight.c">
+    <ClCompile Include="..\..\..\..\src\common\game\flight.c">
       <CompileAs>CompileAsC</CompileAs>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\game\flight_scenario.c">
+    <ClCompile Include="..\..\..\..\src\common\game\flight_scenario.c">
       <CompileAs>CompileAsC</CompileAs>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\world\terrain.c">
+    <ClCompile Include="..\..\..\..\src\common\world\terrain.c">
       <CompileAs>CompileAsC</CompileAs>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\model\plane.c">
+    <ClCompile Include="..\..\..\..\src\common\model\plane.c">
       <CompileAs>CompileAsC</CompileAs>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
     </ClCompile>

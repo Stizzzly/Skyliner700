@@ -17,6 +17,19 @@ A small flight simulator written in pure **C** with a **Direct3D 9 fixed-functio
 - Main menu, pause menu, automated test flight, and telemetry mode
 - Deterministic CTest flight-physics tests that run without a window or D3D9
 
+## Project layout
+
+```
+src/common/       Shared C gameplay: flight model, scripted flight, terrain, aircraft data
+src/win32/        Win32 entry point, input/window code, chase/free camera, D3D9 renderer
+platforms/xbox360/ Xbox 360 Visual Studio 2010 solution and platform bootstrap
+assets/source/    Editable source artwork
+assets/           Runtime assets for Windows and Xbox 360
+tests/            Headless CTest flight-model checks
+```
+
+Open the Xbox 360 solution at `platforms/xbox360/Skyliner700Xbox360/Skyliner700xbox360.sln`. XDK headers, libraries, and samples are intentionally not included in this repository.
+
 ## Controls
 
 | Key | Action |

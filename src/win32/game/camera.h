@@ -1,7 +1,7 @@
 #ifndef SKYLINER_CAMERA_H
 #define SKYLINER_CAMERA_H
 
-#include "flight.h"
+#include "game/flight.h"
 
 /* Camera mode is intentionally separate from the renderer: it only turns
  * player input and aircraft state into an eye/target pair for D3D9. */

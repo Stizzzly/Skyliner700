@@ -17,13 +17,16 @@
     <ClInclude Include="stdafx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\game\flight.h">
+    <ClInclude Include="..\..\..\..\src\common\game\flight.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\world\terrain.h">
+    <ClInclude Include="..\..\..\..\src\common\game\flight_scenario.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="..\..\..\..\model\plane.h">
+    <ClInclude Include="..\..\..\..\src\common\world\terrain.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\..\..\src\common\model\plane.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -34,13 +37,16 @@
     <ClCompile Include="Skyliner700xbox360.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\game\flight.c">
+    <ClCompile Include="..\..\..\..\src\common\game\flight.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\world\terrain.c">
+    <ClCompile Include="..\..\..\..\src\common\game\flight_scenario.c">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="..\..\..\..\model\plane.c">
+    <ClCompile Include="..\..\..\..\src\common\world\terrain.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\..\..\src\common\model\plane.c">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
