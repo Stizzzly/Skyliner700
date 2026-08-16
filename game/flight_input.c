@@ -13,7 +13,9 @@ void Flight_ReadKeyboardInput(FlightInput* input) {
     /* Keep the visual aircraft controls intuitive in the chase camera:
        Left rolls the left wing down and Right rolls the right wing down. */
     input->roll = (KeyDown(VK_RIGHT) ? 1.0f : 0.0f) - (KeyDown(VK_LEFT) ? 1.0f : 0.0f);
-    input->yaw = (KeyDown('E') ? 1.0f : 0.0f) - (KeyDown('Q') ? 1.0f : 0.0f);
+    /* Flight-space yaw decreases for a visual right turn.  Keep the keyboard
+       mapping consistent with the Xbox right bumper: E turns right, Q left. */
+    input->yaw = (KeyDown('Q') ? 1.0f : 0.0f) - (KeyDown('E') ? 1.0f : 0.0f);
     input->throttle = (KeyDown(VK_SHIFT) ? 1.0f : 0.0f) - (KeyDown(VK_CONTROL) ? 1.0f : 0.0f);
     input->reset = KeyDown('R');
 }
