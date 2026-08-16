@@ -88,6 +88,7 @@ static HRESULT CreateRenderer()
 {
     D3DPRESENT_PARAMETERS presentation;
     D3DSURFACE_PARAMETERS surfaceParameters;
+    D3DVIEWPORT9 viewport;
     XVIDEO_MODE videoMode;
     HRESULT result;
 
@@ -118,13 +119,20 @@ static HRESULT CreateRenderer()
     presentation.PresentationInterval = D3DPRESENT_INTERVAL_ONE;
 
     result = g_d3d->CreateDevice(0, D3DDEVTYPE_HAL, NULL,
-                                 D3DCREATE_HARDWARE_VERTEXPROCESSING,
+                                 D3DCREATE_HARDWARE_VERTEXPROCESSING | D3DCREATE_BUFFER_2_FRAMES,
                                  &presentation, &g_device);
     if (FAILED(result))
     {
         OutputDebugStringA("Skyliner700: CreateDevice failed.\n");
         return E_FAIL;
     }
+
+    ZeroMemory(&viewport, sizeof(viewport));
+    viewport.Width = g_renderWidth;
+    viewport.Height = g_renderHeight;
+    viewport.MinZ = 0.0f;
+    viewport.MaxZ = 1.0f;
+    g_device->SetViewport(&viewport);
 
     /* Predicated tiling uses one 1280x256 4x-MSAA EDRAM tile.  BeginTiling
        records the normal scene once and EndTiling replays it for the three
@@ -150,15 +158,25 @@ static HRESULT CreateRenderer()
         result = g_device->CreateRenderTarget(textureAlignedWidth, textureAlignedHeight,
                                               D3DFMT_X8R8G8B8, D3DMULTISAMPLE_4_SAMPLES,
                                               0, FALSE, &g_tilingRenderTarget, &surfaceParameters);
-        if (FAILED(result)) return result;
-        surfaceParameters.Base = g_tilingRenderTarget->Size / GPU_EDRAM_TILE_SIZE;
-        surfaceParameters.HierarchicalZBase = 0;
-        result = g_device->CreateDepthStencilSurface(textureAlignedWidth, textureAlignedHeight,
-                                                      D3DFMT_D24S8, D3DMULTISAMPLE_4_SAMPLES,
-                                                      0, FALSE, &g_depthStencil, &surfaceParameters);
-        if (FAILED(result)) return result;
-        g_tiledMsaaEnabled = TRUE;
-        g_device->SetScreenExtentQueryMode(D3DSEQM_PRECLIP);
+        if (SUCCEEDED(result))
+        {
+            surfaceParameters.Base = g_tilingRenderTarget->Size / GPU_EDRAM_TILE_SIZE;
+            surfaceParameters.HierarchicalZBase = 0;
+            result = g_device->CreateDepthStencilSurface(textureAlignedWidth, textureAlignedHeight,
+                                                          D3DFMT_D24S8, D3DMULTISAMPLE_4_SAMPLES,
+                                                          0, FALSE, &g_depthStencil, &surfaceParameters);
+        }
+        if (SUCCEEDED(result))
+        {
+            g_tiledMsaaEnabled = TRUE;
+            g_device->SetScreenExtentQueryMode(D3DSEQM_PRECLIP);
+        }
+        else
+        {
+            OutputDebugStringA("Skyliner700: tiled 4x MSAA surfaces unavailable; using standard resolve path.\n");
+            if (g_depthStencil) { g_depthStencil->Release(); g_depthStencil = NULL; }
+            if (g_tilingRenderTarget) { g_tilingRenderTarget->Release(); g_tilingRenderTarget = NULL; }
+        }
     }
 
     /* This target aliases EDRAM after tiling has resolved.  It receives the
