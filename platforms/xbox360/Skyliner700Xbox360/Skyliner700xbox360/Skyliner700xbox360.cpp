@@ -624,8 +624,8 @@ static void UpdateInput(float deltaTime)
         input.pitch = NormalizeStick(state.Gamepad.sThumbLY);
         input.roll = NormalizeStick(state.Gamepad.sThumbLX);
         input.throttle = ((float)state.Gamepad.bRightTrigger - (float)state.Gamepad.bLeftTrigger) / 255.0f;
-        input.yaw = ((state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f) -
-                    ((state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f);
+        input.yaw = ((state.Gamepad.wButtons & XINPUT_GAMEPAD_LEFT_SHOULDER) ? 1.0f : 0.0f) -
+                    ((state.Gamepad.wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER) ? 1.0f : 0.0f);
         input.reset = (state.Gamepad.wButtons & XINPUT_GAMEPAD_A) != 0;
 
         if (state.Gamepad.wButtons & XINPUT_GAMEPAD_START)
