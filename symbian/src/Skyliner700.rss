@@ -1,0 +1,15 @@
+#include <eikon.rh>
+#include <avkon.rh>
+#include <avkon.rsg>
+NAME SKY7
+RESOURCE RSS_SIGNATURE { }
+RESOURCE TBUF { buf="Skyliner700"; }
+RESOURCE EIK_APP_INFO { menubar=0; cba=r_skyliner_keys; }
+RESOURCE CBA r_skyliner_keys
+    {
+    buttons =
+        {
+        CBA_BUTTON { id=0x7001; txt="Menu"; },
+        CBA_BUTTON { id=EAknSoftkeyExit; txt="Exit"; }
+        };
+    }

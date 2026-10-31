@@ -1,3 +1,5 @@
+> **Symbian branch:** [Nokia 6600 port, source and installer](symbian/README.md) — native software 3D, fixed-point math, Direct Screen Access.
+
 # Skyliner 700
 
 [English version](README.md)
