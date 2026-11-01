@@ -1,11 +1,13 @@
-Version 0.1.18: WS event handler before Avkon control dispatch
-ARMI UREL ARM32 and no-FP/divide/span audits: PASS
-Input snapshot/tap/simultaneous/repeat/physical alias/focus reset tests: PASS
-Repeat save/suppress/restore lifecycle and interval FPS tests: PASS
+Version 0.1.19: application-owned request/frame loop
+Native ARMI UREL / ARM32 / no-FP / divide/span audits: PASS
+Native CONE Cancel precedes EventReady: PASS
+Native direct GetEvent / EventReady / WaitForAnyRequest / RunIfReady: PASS
+Native CPeriodic driver removed: PASS
+Shared loop tests: simultaneous input/timer, spurious wake, exit before frame: PASS
+Button tap/combination/repeat/alias/focus state tests: PASS
+Repeat policy and interval FPS tests: PASS
 Full preview regression suite: PASS; raster checksum 86c26771 unchanged
-Native override CFlightUi::HandleWsEventL present; no game OfferKeyEventL: PASS
-SIS APP/RSC/AIF byte identity with native build: PASS
-EventReady/GetEvent remains owned by CONE; no competing queue reader
-Native menu/key/foreground/DSA behavior requires device verification
-On-device 0.1.18 FPS gain: not measured
-SHA256 SIS: 05c00948fb76341cd574089866f70cd2b3982e8217e8630cf79e5ba03a0c224c
+SIS APP/RSC/AIF byte identity: PASS
+On-device loop/foreground/DSA restart/menu/exit verification: pending
+On-device FPS gain: not measured
+SHA256 SIS: 32fe5098a3137ffd7f49799b3429a819c7607a5ed68f742c179f46f5ac754cb9

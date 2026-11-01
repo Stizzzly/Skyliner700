@@ -1,5 +1,13 @@
 #ifndef SKY_RUNTIME_H
 #define SKY_RUNTIME_H
+// One completion wakes the owned loop. Read/rearm WS before auxiliary AOs,
+// then render a due frame. No nested CActiveScheduler::Start or CPeriodic.
+template<class Host> void PumpGameRequestsL(Host& host){
+    host.Wait();
+    if(host.EventReady())host.ReadEventL();
+    host.DispatchReadyL();
+    if(!host.Quitting()&&host.FrameReady())host.DrawFrameL();
+}
 // WS down/up edges accumulate until the frame takes one coherent snapshot.
 // A down+up between frames preserves both edges; typematic downs add none.
 class FlightButtons {

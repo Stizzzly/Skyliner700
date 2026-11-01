@@ -17,7 +17,7 @@
 const TUid KSkylinerUid={0x0F700660};
 class CFlightView:public CCoeControl,public MDirectScreenAccess {
 public:
-    CFlightView():iBitmap(0),iMenuBitmap(0),iTimer(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
+    CFlightView():iBitmap(0),iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
     void ConstructL() {
         CreateWindowL();SetExtentToWholeScreen();
         iBitmap=new(ELeave)CFbsBitmap;
@@ -33,12 +33,9 @@ public:
         ActivateL();
         // DSA is the only presentation backend in this build.
         StartDsaL();Present();
-        iTimer=CPeriodic::NewL(CActive::EPriorityIdle);
-        // Do not hide faster presentation behind the old 50ms timer delay.
-        // Physics retains its independent 20ms fixed step.
-        iTimer->Start(10000,10000,TCallBack(Tick,this));
+
     }
-    ~CFlightView(){iRepeatGuard.Restore(iEikonEnv->WsSession());delete iTimer;delete iDsa;delete iRenderer;delete iBitmap;delete iMenuBitmap;delete[] iPixels;}
+    ~CFlightView(){iRepeatGuard.Restore(iEikonEnv->WsSession());delete iDsa;delete iRenderer;delete iBitmap;delete iMenuBitmap;delete[] iPixels;}
     void UpdateRepeatPolicy(){
         iRepeatGuard.Update(!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused(),iEikonEnv->WsSession());
     }
@@ -84,12 +81,6 @@ public:
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
-    static TInt Tick(TAny* p){
-        CFlightView* view=static_cast<CFlightView*>(p);
-        TRAPD(error,view->Frame());
-        if(error!=KErrNone)CEikonEnv::Static()->HandleError(error);
-        return 1;
-    }
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
         UpdateRepeatPolicy();
@@ -179,26 +170,103 @@ public:
     }
 
 private:
-    CFbsBitmap* iBitmap;CFbsBitmap* iMenuBitmap;MenuState iMenu;CPeriodic* iTimer;Soft3D* iRenderer;Pixel* iPixels;
+    CFbsBitmap* iBitmap;CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
     KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };
+// Own request pump, as in the N-Gage engine: WS input is not a CONE AO.
+// The bootstrap idle callback only enters the loop once; it never ticks frames.
 class CFlightUi:public CAknAppUi {
 public:
-    CFlightUi():iView(0){}
-    void ConstructL(){BaseConstructL();SetKeyBlockMode(ENoKeyBlock);iView=new(ELeave)CFlightView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
-    ~CFlightUi(){if(iView){RemoveFromStack(iView);delete iView;}}
-    void HandleCommandL(TInt cmd){if(cmd==EEikCmdExit||cmd==EAknSoftkeyExit){Exit();return;}if(cmd==0x7001&&iView)iView->ToggleMenu();}
-    void HandleWsEventL(const TWsEvent& event,CCoeControl* destination){
-        const TInt type=event.Type();
-        if(iView&&(type==EEventKeyDown||type==EEventKeyUp||type==EEventKey)&&
-           iView->HandleGameKey(*event.Key(),type))return;
-        // CONE remains the sole EventReady/GetEvent consumer for this session.
-        // Focus, redraw, shutdown and DSA lifecycle events retain normal dispatch.
-        CAknAppUi::HandleWsEventL(event,destination);
+    CFlightUi():iView(0),iStarter(0),iExitCallback(0),iQuit(EFalse),iOwnWs(EFalse),iTimerOpen(EFalse),iTimerPending(EFalse){}
+    void ConstructL(){
+        BaseConstructL();SetKeyBlockMode(ENoKeyBlock);
+        iView=new(ELeave)CFlightView;iView->ConstructL();
+        AddToStackL(iView);iView->SetFocus(ETrue);
+        iExitCallback=new(ELeave)CAsyncCallBack(TCallBack(Finish,this),CActive::EPriorityHigh);
+        iStarter=CIdle::NewL(CActive::EPriorityIdle);
+        iStarter->Start(TCallBack(Bootstrap,this));
     }
-private:CFlightView* iView;
+    ~CFlightUi(){
+        StopRequests();delete iStarter;delete iExitCallback;
+        if(iView){RemoveFromStack(iView);delete iView;}
+    }
+    void HandleCommandL(TInt cmd){
+        if(cmd==EEikCmdExit||cmd==EAknSoftkeyExit){iQuit=ETrue;return;}
+        if(cmd==0x7001&&iView)iView->ToggleMenu();
+    }
+    static TInt Bootstrap(TAny* self){static_cast<CFlightUi*>(self)->RunGameLoop();return 0;}
+    static TInt Finish(TAny* self){static_cast<CFlightUi*>(self)->Exit();return 0;}
+    void RunGameLoop(){
+        TRAPD(error,OwnRequestsL());
+        StopRequests();
+        // Return out of the manual loop before deleting any UI/DSA objects.
+        // The normal scheduler executes this callback after Bootstrap returns.
+        if(error!=KErrNone){
+            RFile log;
+            if(log.Replace(iEikonEnv->FsSession(),_L("C:\\Skyliner700-loop.log"),EFileWrite)==KErrNone){
+                TBuf8<64> line;line.Format(_L8("Manual request loop error: %d\r\n"),error);
+                log.Write(line);log.Close();
+            }
+        }
+        iExitCallback->CallBack();
+    }
+    void OwnRequestsL(){
+        User::LeaveIfError(iFrameTimer.CreateLocal());iTimerOpen=ETrue;
+        // Cancel synchronously: never have two EventReady consumers on a session.
+        iEikonEnv->Cancel();
+        iOwnWs=ETrue;
+        iEikonEnv->WsSession().EventReady(&iEventStatus);
+        ArmFrame();
+        while(!iQuit)PumpGameRequestsL(*this);
+    }
+    void Wait(){User::WaitForAnyRequest();}
+    TBool EventReady()const{return iEventStatus!=KRequestPending;}
+    void ReadEventL(){
+        User::LeaveIfError(iEventStatus.Int());
+        TWsEvent event;iEikonEnv->WsSession().GetEvent(event);
+        // Re-arm immediately, before dispatching callbacks that may leave.
+        iEikonEnv->WsSession().EventReady(&iEventStatus);
+        TInt type=event.Type();
+        if(type==EEventKeyDown||type==EEventKeyUp||type==EEventKey){
+            iView->HandleGameKey(*event.Key(),type);return;
+        }
+        // CONE's redraw AO and DSA AO are pumped below. Standard non-key events
+        // retain S60 handling (focus, app messages, resource/screen changes).
+        CAknAppUi::HandleWsEventL(event,reinterpret_cast<CCoeControl*>(event.Handle()));
+    }
+    void DispatchReadyL(){
+        TInt error=KErrNone;
+        // The N-Gage loop also services scheduler requests at priority -25.
+        // Bound each batch so a busy auxiliary AO cannot starve the frame.
+        for(TInt n=0;n<32&&!iQuit;++n){
+            TBool ran=CActiveScheduler::RunIfReady(error,-25);
+            User::LeaveIfError(error);if(!ran)break;
+        }
+    }
+    TBool Quitting()const{return iQuit;}
+    TBool FrameReady()const{return iTimerPending&&iFrameStatus!=KRequestPending;}
+    void DrawFrameL(){
+        iTimerPending=EFalse;User::LeaveIfError(iFrameStatus.Int());
+        iView->Frame();if(!iQuit)ArmFrame();
+    }
+    void ArmFrame(){iFrameTimer.After(iFrameStatus,10000);iTimerPending=ETrue;}
+    void StopRequests(){
+        if(iOwnWs){
+            iEikonEnv->WsSession().EventReadyCancel();
+            User::WaitForRequest(iEventStatus);iOwnWs=EFalse;
+        }
+        if(iTimerOpen){
+            iFrameTimer.Cancel();
+            if(iTimerPending)User::WaitForRequest(iFrameStatus);
+            iTimerPending=EFalse;iFrameTimer.Close();iTimerOpen=EFalse;
+        }
+    }
+private:
+    CFlightView* iView;CIdle* iStarter;CAsyncCallBack* iExitCallback;
+    RTimer iFrameTimer;TRequestStatus iEventStatus,iFrameStatus;
+    TBool iQuit,iOwnWs,iTimerOpen,iTimerPending;
 };
 class CFlightDocument:public CAknDocument {
 public:CFlightDocument(CEikApplication& a):CAknDocument(a){}

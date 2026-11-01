@@ -9,7 +9,24 @@ struct Session {
     void GetKeyboardRepeatRate(Interval& a,Interval& b){++gets;a.value=initial;b.value=period;}
     void SetKeyboardRepeatRate(const Interval& a,const Interval& b){++sets;initial=a.value;period=b.value;}
 };
+// Exercise the same pump used by the native loop, including simultaneous wakes.
+struct PumpHost {
+    bool event,frame,quit;int order,waits;
+    PumpHost():event(false),frame(false),quit(false),order(0),waits(0){}
+    void Wait(){++waits;}
+    bool EventReady(){return event;}
+    void ReadEventL(){order=order*10+1;event=false;}
+    void DispatchReadyL(){order=order*10+2;}
+    bool Quitting(){return quit;}
+    bool FrameReady(){return frame;}
+    void DrawFrameL(){order=order*10+3;frame=false;}
+};
 int main(){
+    PumpHost pump;pump.event=true;pump.frame=true;PumpGameRequestsL(pump);
+    Check(pump.waits==1&&pump.order==123&&!pump.event&&!pump.frame,"owned pump handles input before auxiliary requests and frame");
+    pump.order=0;PumpGameRequestsL(pump);Check(pump.order==2,"spurious completion never reads a pending event or timer");
+    pump.order=0;pump.event=true;pump.frame=true;pump.quit=true;PumpGameRequestsL(pump);
+    Check(pump.order==12&&pump.frame,"exit skips rendering before teardown");
     FlightButtons keys;
     keys.Change(FlightButtons::RollLeft,true);
     keys.Change(FlightButtons::PitchUp,true);

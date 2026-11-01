@@ -67,3 +67,16 @@ assert not any(re.search(r'\b(?:sp|r13)\b',args) or op in ('bl','blx') for op,ar
 assert sum(op=='str' for op,args in loop)==2, 'Missing packed framebuffer/depth stores'
 assert sum(op=='strgth' for op,args in loop)==4, 'Missing mixed-result halfword stores'
 print('PASS: pair kernel loads Z early, uses packed/mixed stores, and has no loop stack traffic/calls.')
+
+ui = subprocess.check_output([str(nm), str(objects / 'SYMBIAN.o')], text=True, errors='replace')
+for symbol in ('EventReady__10RWsSessionP14TRequestStatus', 'GetEvent__10RWsSessionR8TWsEvent',
+               'EventReadyCancel__10RWsSession', 'WaitForAnyRequest__4User',
+               'RunIfReady__16CActiveSchedulerRii', 'OwnRequestsL__9CFlightUi'):
+    assert symbol in ui, 'Missing owned request pump symbol: ' + symbol
+assert 'CPeriodic' not in ui, 'CPeriodic still drives the native application'
+assert 'OfferKeyEventL__11CFlightView' not in ui, 'Control stack still owns game input'
+ui_asm = subprocess.check_output([str(objdump), '-dr', str(objects / 'SYMBIAN.o')], text=True, errors='replace')
+owned = re.search(r'<OwnRequestsL__9CFlightUi>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', ui_asm, re.M | re.S)
+assert owned, 'Missing owned loop body'
+assert owned.group(1).index('ARM_26\tCancel__7CActive') < owned.group(1).index('ARM_26\tEventReady__10RWsSession'), 'CONE must be cancelled before owning WS requests'
+print('PASS: native owned WS pump, CONE cancel before EventReady, direct GetEvent/WaitForAnyRequest/RunIfReady, no CPeriodic.')
