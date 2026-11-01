@@ -1,10 +1,10 @@
 #ifndef SKY_RUNTIME_H
 #define SKY_RUNTIME_H
-// One completion wakes the owned loop. Read/rearm WS before auxiliary AOs,
-// then render a due frame. No nested CActiveScheduler::Start or CPeriodic.
+// Wait blocks only in menus/background. Drain a bounded input batch before
+// auxiliary AOs and the next uncapped frame; no post-frame sleep.
 template<class Host> void PumpGameRequestsL(Host& host){
     host.Wait();
-    if(host.EventReady())host.ReadEventL();
+    for(int n=0;n<32&&!host.Quitting()&&host.EventReady();++n)host.ReadEventL();
     host.DispatchReadyL();
     if(!host.Quitting()&&host.FrameReady())host.DrawFrameL();
 }

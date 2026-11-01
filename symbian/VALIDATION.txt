@@ -1,13 +1,11 @@
-Version 0.1.19: application-owned request/frame loop
-Native ARMI UREL / ARM32 / no-FP / divide/span audits: PASS
-Native CONE Cancel precedes EventReady: PASS
-Native direct GetEvent / EventReady / WaitForAnyRequest / RunIfReady: PASS
-Native CPeriodic driver removed: PASS
-Shared loop tests: simultaneous input/timer, spurious wake, exit before frame: PASS
-Button tap/combination/repeat/alias/focus state tests: PASS
-Repeat policy and interval FPS tests: PASS
+Version 0.1.20: uncapped benchmark, no post-frame timer
+ARMI UREL ARM32 / no-FP / divide/span audits: PASS
+Native owned WS request pump and cancel-before-EventReady: PASS
+Native RThread::RequestCount present; CPeriodic and RTimer::After absent: PASS
+Input/auxiliary/frame order, pending/spurious completion and exit tests: PASS
+Button snapshots/taps/combinations/repeats/aliases/focus reset tests: PASS
+Repeat policy and interval FPS tests: PASS (FPS counter unchanged)
 Full preview regression suite: PASS; raster checksum 86c26771 unchanged
 SIS APP/RSC/AIF byte identity: PASS
-On-device loop/foreground/DSA restart/menu/exit verification: pending
-On-device FPS gain: not measured
-SHA256 SIS: 32fe5098a3137ffd7f49799b3429a819c7607a5ed68f742c179f46f5ac754cb9
+On-device foreground/menu/DSA wake and uncapped FPS: pending
+SHA256 SIS: 43750125583ca40cc6ee18ec5a83093dac3f49e2ed1b1e1c4ccfa8ecbef3af5f

@@ -26,7 +26,7 @@ int main(){
     Check(pump.waits==1&&pump.order==123&&!pump.event&&!pump.frame,"owned pump handles input before auxiliary requests and frame");
     pump.order=0;PumpGameRequestsL(pump);Check(pump.order==2,"spurious completion never reads a pending event or timer");
     pump.order=0;pump.event=true;pump.frame=true;pump.quit=true;PumpGameRequestsL(pump);
-    Check(pump.order==12&&pump.frame,"exit skips rendering before teardown");
+    Check(pump.order==2&&pump.frame,"exit skips queued input and rendering before teardown");
     FlightButtons keys;
     keys.Change(FlightButtons::RollLeft,true);
     keys.Change(FlightButtons::PitchUp,true);

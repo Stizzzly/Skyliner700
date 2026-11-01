@@ -74,6 +74,8 @@ for symbol in ('EventReady__10RWsSessionP14TRequestStatus', 'GetEvent__10RWsSess
                'RunIfReady__16CActiveSchedulerRii', 'OwnRequestsL__9CFlightUi'):
     assert symbol in ui, 'Missing owned request pump symbol: ' + symbol
 assert 'CPeriodic' not in ui, 'CPeriodic still drives the native application'
+assert 'After__6RTimer' not in ui, 'Frame timer remains in uncapped benchmark build'
+assert 'RequestCount__C7RThread' in ui, 'Missing nonblocking completion check'
 assert 'OfferKeyEventL__11CFlightView' not in ui, 'Control stack still owns game input'
 ui_asm = subprocess.check_output([str(objdump), '-dr', str(objects / 'SYMBIAN.o')], text=True, errors='replace')
 owned = re.search(r'<OwnRequestsL__9CFlightUi>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', ui_asm, re.M | re.S)

@@ -81,6 +81,7 @@ public:
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
+    TBool ContinuousFrames()const{return !iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused();}
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
         UpdateRepeatPolicy();
@@ -179,7 +180,7 @@ private:
 // The bootstrap idle callback only enters the loop once; it never ticks frames.
 class CFlightUi:public CAknAppUi {
 public:
-    CFlightUi():iView(0),iStarter(0),iExitCallback(0),iQuit(EFalse),iOwnWs(EFalse),iTimerOpen(EFalse),iTimerPending(EFalse){}
+    CFlightUi():iView(0),iStarter(0),iExitCallback(0),iQuit(EFalse),iOwnWs(EFalse),iAuxReady(EFalse){}
     void ConstructL(){
         BaseConstructL();SetKeyBlockMode(ENoKeyBlock);
         iView=new(ELeave)CFlightView;iView->ConstructL();
@@ -213,15 +214,21 @@ public:
         iExitCallback->CallBack();
     }
     void OwnRequestsL(){
-        User::LeaveIfError(iFrameTimer.CreateLocal());iTimerOpen=ETrue;
         // Cancel synchronously: never have two EventReady consumers on a session.
         iEikonEnv->Cancel();
         iOwnWs=ETrue;
         iEikonEnv->WsSession().EventReady(&iEventStatus);
-        ArmFrame();
         while(!iQuit)PumpGameRequestsL(*this);
     }
-    void Wait(){User::WaitForAnyRequest();}
+    void Wait(){
+        // Consume completed request signals without blocking an active flight.
+        // Match the EKA1 pump pattern: RequestCount -> WaitForAnyRequest.
+        RThread thread;
+        TInt drained=0;
+        while(drained<64&&thread.RequestCount()>0){User::WaitForAnyRequest();++drained;}
+        if(!drained&&!iView->ContinuousFrames()&&!EventReady()&&!iAuxReady)
+            User::WaitForAnyRequest();
+    }
     TBool EventReady()const{return iEventStatus!=KRequestPending;}
     void ReadEventL(){
         User::LeaveIfError(iEventStatus.Int());
@@ -240,33 +247,29 @@ public:
         TInt error=KErrNone;
         // The N-Gage loop also services scheduler requests at priority -25.
         // Bound each batch so a busy auxiliary AO cannot starve the frame.
+        iAuxReady=EFalse;
         for(TInt n=0;n<32&&!iQuit;++n){
             TBool ran=CActiveScheduler::RunIfReady(error,-25);
             User::LeaveIfError(error);if(!ran)break;
+            if(n==31)iAuxReady=ETrue;
         }
     }
     TBool Quitting()const{return iQuit;}
-    TBool FrameReady()const{return iTimerPending&&iFrameStatus!=KRequestPending;}
-    void DrawFrameL(){
-        iTimerPending=EFalse;User::LeaveIfError(iFrameStatus.Int());
-        iView->Frame();if(!iQuit)ArmFrame();
-    }
-    void ArmFrame(){iFrameTimer.After(iFrameStatus,10000);iTimerPending=ETrue;}
+    // Benchmark mode: no frame timer or target-FPS cap. Frame handles pause,
+    // queued menu commands and deferred DSA repeat restoration on event wakes.
+    TBool FrameReady()const{return ETrue;}
+    void DrawFrameL(){iView->Frame();}
     void StopRequests(){
         if(iOwnWs){
             iEikonEnv->WsSession().EventReadyCancel();
             User::WaitForRequest(iEventStatus);iOwnWs=EFalse;
         }
-        if(iTimerOpen){
-            iFrameTimer.Cancel();
-            if(iTimerPending)User::WaitForRequest(iFrameStatus);
-            iTimerPending=EFalse;iFrameTimer.Close();iTimerOpen=EFalse;
-        }
+
     }
 private:
     CFlightView* iView;CIdle* iStarter;CAsyncCallBack* iExitCallback;
-    RTimer iFrameTimer;TRequestStatus iEventStatus,iFrameStatus;
-    TBool iQuit,iOwnWs,iTimerOpen,iTimerPending;
+    TRequestStatus iEventStatus;
+    TBool iQuit,iOwnWs,iAuxReady;
 };
 class CFlightDocument:public CAknDocument {
 public:CFlightDocument(CEikApplication& a):CAknDocument(a){}
