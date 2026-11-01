@@ -51,7 +51,7 @@ public:
         // No Window Server calls here: the server is waiting for our return.
         // Never cache Gc()/ScreenDevice() across an abort/restart.
         iDsaReady=EFalse;iDsaSuspended=ETrue;
-        iKeys=0;iAccum=0;iPaused=ETrue;iMenu.Pause();
+        iButtons.Clear();iKeys=0;iAccum=0;iPaused=ETrue;iMenu.Pause();
     }
     void Restart(RDirectScreenAccess::TTerminationReasons){
         TRAPD(error,StartDsaL());
@@ -84,11 +84,27 @@ public:
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
-    static TInt Tick(TAny* p){return static_cast<CFlightView*>(p)->Frame();}
+    static TInt Tick(TAny* p){
+        CFlightView* view=static_cast<CFlightView*>(p);
+        TRAPD(error,view->Frame());
+        if(error!=KErrNone)CEikonEnv::Static()->HandleError(error);
+        return 1;
+    }
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
         UpdateRepeatPolicy();
         if(iDsaSuspended||!iDsaReady)return 1;
+        const FlightButtons::Snapshot buttons=iButtons.Take();
+        iKeys=buttons.held&255;
+        // Actions run once per frame, never inside the WS event callback.
+        // Exit can destroy this view: return immediately after requesting it.
+        if(buttons.pressed&FlightButtons::Exit){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return 1;}
+        if(buttons.pressed&FlightButtons::Select){ToggleMenu();return 1;}
+        if(iMenu.Visible()){
+            if(buttons.pressed&(FlightButtons::PitchUp|FlightButtons::MenuUp))iMenu.Move(-1);
+            if(buttons.pressed&(FlightButtons::PitchDown|FlightButtons::MenuDown))iMenu.Move(1);
+            if(buttons.pressed&(FlightButtons::PitchUp|FlightButtons::MenuUp|FlightButtons::PitchDown|FlightButtons::MenuDown)){BuildMenu();Present();}
+        }else if(buttons.pressed&FlightButtons::Reset){ResetFlight();return 1;}
         TTime now;now.UniversalTime();
         TInt elapsed=now.MicroSecondsFrom(iLast).Int64().GetTInt();iLast=now;
         // Keep the last frame behind the menu; do not spend a second rendering
@@ -118,35 +134,30 @@ public:
         iPresentMs=presentEnd.MicroSecondsFrom(presentStart).Int64().GetTInt()/1000;
         return 1;
     }
-    TKeyResponse OfferKeyEventL(const TKeyEvent& key,TEventCode type){
-        // No physics or rendering for typematic repeats; queued repeats may
-        // still arrive just after a rate change or foreground transition.
-        if(type==EEventKey&&key.iRepeats>0)return EKeyWasConsumed;
-        if((type==EEventKeyDown||type==EEventKey)&&
-           (key.iScanCode==EStdKeyDevice1||key.iScanCode==EStdKeyHash||key.iCode==EKeyEscape||key.iCode=='#')){
-            iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return EKeyWasConsumed;
-        }
-        if(type==EEventKey&&iMenu.Visible()){
-            if(key.iCode==EKeyUpArrow||key.iCode=='2'){iMenu.Move(-1);BuildMenu();Present();return EKeyWasConsumed;}
-            if(key.iCode==EKeyDownArrow||key.iCode=='8'){iMenu.Move(1);BuildMenu();Present();return EKeyWasConsumed;}
-            if(key.iCode=='5'||key.iCode==EKeyEnter||key.iScanCode==EStdKeyDevice3||key.iScanCode==EStdKeyDevice0){ApplyMenu(iMenu.Select());return EKeyWasConsumed;}
-        }
-        if(type==EEventKey&&(key.iCode=='5'||key.iScanCode==EStdKeyDevice0||key.iScanCode==EStdKeyDevice3)){
-            ToggleMenu();return EKeyWasConsumed;
-        }
-        if(type==EEventKey&&key.iCode=='0'){ResetFlight();return EKeyWasConsumed;}
-        if(iPaused)return EKeyWasConsumed;
-        TInt mask=0;
+    TBool HandleGameKey(const TKeyEvent& key,TInt type){
+        unsigned mask=0;
         switch(key.iScanCode){
-        case EStdKeyUpArrow:mask=1;break;case EStdKeyDownArrow:mask=2;break;
-        case EStdKeyLeftArrow:mask=4;break;case EStdKeyRightArrow:mask=8;break;
-        case '3':mask=16;break;case '1':mask=32;break;
-        case '9':mask=64;break;case '7':mask=128;break;
+        case EStdKeyUpArrow:mask=FlightButtons::PitchUp;break;
+        case EStdKeyDownArrow:mask=FlightButtons::PitchDown;break;
+        case EStdKeyLeftArrow:mask=FlightButtons::RollLeft;break;
+        case EStdKeyRightArrow:mask=FlightButtons::RollRight;break;
+        case '3':mask=FlightButtons::ThrottleUp;break;case '1':mask=FlightButtons::ThrottleDown;break;
+        case '9':mask=FlightButtons::YawRight;break;case '7':mask=FlightButtons::YawLeft;break;
+        case '2':mask=FlightButtons::MenuUp;break;case '8':mask=FlightButtons::MenuDown;break;
+        case '5':case EStdKeyEnter:case EStdKeyDevice0:case EStdKeyDevice3:mask=FlightButtons::Select;break;
+        case EStdKeyDevice1:case EStdKeyHash:case EStdKeyEscape:mask=FlightButtons::Exit;break;
+        case '0':mask=FlightButtons::Reset;break;
         }
-        if(mask){if(type==EEventKeyDown)iKeys|=mask;else if(type==EEventKeyUp)iKeys&=~mask;return EKeyWasConsumed;}
-        return EKeyWasNotConsumed;
+        if(!mask)return EFalse;
+        // Ignore translated EEventKey, including autorepeat, before Avkon.
+        // Preserve physical held bits in menus so holding Select cannot toggle twice.
+        if(!iDsaSuspended&&iDsaReady&&IsFocused()){
+            if(type==EEventKeyDown)iButtons.ChangeScan(key.iScanCode,mask,true);
+            else if(type==EEventKeyUp)iButtons.ChangeScan(key.iScanCode,mask,false);
+        }
+        return ETrue;
     }
-    void FocusChanged(TDrawNow){if(!IsFocused()){iKeys=0;iPaused=ETrue;iAccum=0;iFpsCounter.Reset();iMenu.Pause();}if(!iDsaSuspended)UpdateRepeatPolicy();}
+    void FocusChanged(TDrawNow){if(!IsFocused()){iButtons.Clear();iKeys=0;iPaused=ETrue;iAccum=0;iFpsCounter.Reset();iMenu.Pause();}if(!iDsaSuspended)UpdateRepeatPolicy();}
     void Draw(const TRect&) const {
         // Window Server redraw events do not present game frames.
         // DSA Restart/Present owns all scene and menu drawing.
@@ -170,7 +181,7 @@ public:
 private:
     CFbsBitmap* iBitmap;CFbsBitmap* iMenuBitmap;MenuState iMenu;CPeriodic* iTimer;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
-    KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;
+    KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };
 class CFlightUi:public CAknAppUi {
@@ -179,6 +190,14 @@ public:
     void ConstructL(){BaseConstructL();SetKeyBlockMode(ENoKeyBlock);iView=new(ELeave)CFlightView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
     ~CFlightUi(){if(iView){RemoveFromStack(iView);delete iView;}}
     void HandleCommandL(TInt cmd){if(cmd==EEikCmdExit||cmd==EAknSoftkeyExit){Exit();return;}if(cmd==0x7001&&iView)iView->ToggleMenu();}
+    void HandleWsEventL(const TWsEvent& event,CCoeControl* destination){
+        const TInt type=event.Type();
+        if(iView&&(type==EEventKeyDown||type==EEventKeyUp||type==EEventKey)&&
+           iView->HandleGameKey(*event.Key(),type))return;
+        // CONE remains the sole EventReady/GetEvent consumer for this session.
+        // Focus, redraw, shutdown and DSA lifecycle events retain normal dispatch.
+        CAknAppUi::HandleWsEventL(event,destination);
+    }
 private:CFlightView* iView;
 };
 class CFlightDocument:public CAknDocument {

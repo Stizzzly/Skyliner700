@@ -1,12 +1,11 @@
-Version 0.1.17: repeat suppression and interval FPS counting
-ARMI UREL, ARM32, no-FP and existing divide/span audits: PASS
-Repeat policy save/suppress/restore and re-snapshot tests: PASS
-10000 unchanged active-policy updates without WS rate calls: PASS
-FPS counter 31.25/30/25 FPS and timing resets: PASS
-80-frame raster checksum: 86c26771 (unchanged)
-Math/terrain/flight/menu/reciprocal regressions: PASS
-SIS APP/RSC/AIF structure: PASS
-WSERV repeat behavior, hardware keyboard combinations and focus restore need device verification
-New FPS values are not directly comparable to the old biased EMA
-On-device 0.1.17 speedup: not measured
-SHA256 SIS: 200f9468e20c241efeaaee5625ee673fa03b535d6ffe255b33a9a4cb85e5eb63
+Version 0.1.18: WS event handler before Avkon control dispatch
+ARMI UREL ARM32 and no-FP/divide/span audits: PASS
+Input snapshot/tap/simultaneous/repeat/physical alias/focus reset tests: PASS
+Repeat save/suppress/restore lifecycle and interval FPS tests: PASS
+Full preview regression suite: PASS; raster checksum 86c26771 unchanged
+Native override CFlightUi::HandleWsEventL present; no game OfferKeyEventL: PASS
+SIS APP/RSC/AIF byte identity with native build: PASS
+EventReady/GetEvent remains owned by CONE; no competing queue reader
+Native menu/key/foreground/DSA behavior requires device verification
+On-device 0.1.18 FPS gain: not measured
+SHA256 SIS: 05c00948fb76341cd574089866f70cd2b3982e8217e8630cf79e5ba03a0c224c
