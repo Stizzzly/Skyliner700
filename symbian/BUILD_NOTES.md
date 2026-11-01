@@ -152,3 +152,18 @@ at each normalization exponent match exact reference division. Native Project
 has no division/modulo/wide-shift helper relocations. Other renderer paths and
 physics still use software integer division. No on-device FPS claim for 0.1.11.
 Regenerate the table with `python tests/generate_reciprocal.py`.
+
+## Version 0.1.12: division-free scanline bounds
+
+NormalizedInverse shares the existing 1 KiB LUT between depth and edge setup.
+Each non-horizontal edge caches floor(2^32/abs(dx)) once per triangle, with
+bounded correction after the two Newton steps; no runtime division is needed
+for this setup. Zero steps are handled separately. Reciprocal 2^32 for divisor
+1 is held in UWide. For unsigned numerator n < 2^32, multiplying by the rounded
+down reciprocal underestimates floor(n/d) by at most one; a remainder comparison
+recovers the exact quotient. ceil(n/d) is floor((n-1)/d)+1, avoiding n+d overflow.
+Span endpoint rounding therefore matches the former integer division exactly.
+Tests cover all divisors 1..65536 with boundary numerators, plus a million random
+32-bit cases. All 80 baseline frame hashes are unchanged (86c26771). Native
+SOFT3D.o no longer imports __divsi3; __divdi3 (clipping/gradient setup) and
+__modsi3 (polygon indexing) remain. No device FPS claim for 0.1.12.

@@ -142,6 +142,13 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     int dzx=(int)((((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256)/area);
     int dzy=(int)((((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256)/area);
     int rowz=(int)((((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256)/area);
+#ifndef SKY_REFERENCE_RASTER
+    unsigned edgeDivisor[3];UWide edgeInverse[3];
+    for(int edge=0;edge<3;++edge){
+        int step=dx[edge];edgeDivisor[edge]=(unsigned)(step<0?-step:step);
+        edgeInverse[edge]=step?EdgeInverse(edgeDivisor[edge]):0;
+    }
+#endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
         // Desktop-only exact coverage oracle for the span implementation.
@@ -155,8 +162,8 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
         int first=0,last=maxx-minx;
         for(int edge=0;edge<3;++edge){
             int w=row[edge],step=dx[edge];
-            if(step>0&&w<0){int bound=(-w+step-1)/step;if(bound>first)first=bound;}
-            else if(step<0){if(w<0){last=-1;break;}int bound=w/(-step);if(bound<last)last=bound;}
+            if(step>0&&w<0){int bound=(int)EdgeFloor((unsigned)(-(w+1)),edgeDivisor[edge],edgeInverse[edge])+1;if(bound>first)first=bound;}
+            else if(step<0){if(w<0){last=-1;break;}int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);if(bound<last)last=bound;}
             else if(step==0&&w<0){last=-1;break;}
         }
         if(first<=last)DrawSpan(target+y*pitch+minx+first,depth+y*SKY_W+minx+first,last-first+1,rowz+dzx*first,dzx,depthBias,color);
