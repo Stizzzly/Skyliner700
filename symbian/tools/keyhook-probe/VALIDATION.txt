@@ -5,5 +5,7 @@ Separate UID 0F700661 / native ARM EPOC DLL / APP+RSC package: PASS
 APP/RSC match SDK build outputs: PASS
 Native DLL writable data/BSS: 0, exports: 1
 Only CaptureEventHook/ReleaseEventHook imported; RequestEvent not imported
-Device kernel behavior: NOT TESTED
+Device result reported by user: Phase 1 / EExitPanic (2) / KERN-EXEC 12
+Interpretation: event capture hook already designated; no capture return/release
+Additional system error reported; exact message and firmware revision not recorded
 SHA256 SIS: f78c0dbe759f4465e5efa13050e9a8f7aa9ec5ff14dd5f1bde2fa8be49756306

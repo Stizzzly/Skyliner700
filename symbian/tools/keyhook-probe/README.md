@@ -4,6 +4,33 @@
 UID `0x0F700661`; это не новая сборка Skyliner700.
 [Установщик](dist/KeyHookProbe-0.1.0.sis).
 
+## Результат на Nokia 6600
+
+Пользователь выполнил тест на своём телефоне и сообщил:
+
+```text
+KEY HOOK RESULT
+Phase 1
+Exit Type 2
+Reason 12
+Category: KERN-EXEC
+```
+
+`EExitPanic` + `KERN-EXEC 12`: event capture hook уже назначен. Это отказ
+повторного захвата с завершением вызывающего потока, не return KErrInUse.
+До фазы 2 и вызова ReleaseEventHook тест не дошёл. Экран результата был
+показан основным потоком; также пользователь сообщил системное сообщение
+об ошибке. Точный текст дополнительного сообщения не предоставлен.
+
+Владелец хука по этому результату не идентифицирован (штатный кандидат —
+WSERV). Второй обычный CaptureEventHook не отбирает занятый хук на проверенном
+телефоне. Это не проверка альтернативного драйверного/kernel-level механизма.
+Версия прошивки пока не записана. Повторять тот же вызов для той же гипотезы
+не требуется.
+
+[Справочник Symbian KERN-EXEC, код 12](https://docs.huihoo.com/symbian/s60-5th-edition-cpp-developers-library-v2.1/GUID-35228542-8C95-4849-A73F-2B4F082F0C44/sdk/doc_source/reference/SystemPanics/KernExecPanics.html)
+— более поздний SDK; наблюдённый результат телефона согласуется с описанием.
+
 ## Запуск
 
 1. Передайте SIS на телефон, установите и откройте KeyHookProbe в меню.
@@ -56,6 +83,6 @@ Host-проверка `tests/probe_tests.cpp` моделирует отказ з
 `python tests/verify_package.py KeyHookProbe.sis SDK` проверяет UID,
 две полезные нагрузки APP/RSC и их идентичность результатам SDK.
 Нативная ARMI UREL сборка: PASS; writable data/BSS: 0; export NewApplication: 1.
-На настоящем телефоне тест ещё не выполнен.
+На настоящем Nokia 6600 получен KERN-EXEC 12, Phase 1 (см. результат выше).
 
 SHA256 SIS: `f78c0dbe759f4465e5efa13050e9a8f7aa9ec5ff14dd5f1bde2fa8be49756306`.
