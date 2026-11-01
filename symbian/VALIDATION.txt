@@ -1,12 +1,14 @@
-Version 0.1.13: shared exact Q63 area reciprocal
-ARMI UREL build, ARM32 and no-FP audit: PASS
-Entire RasterScreen: no division/modulo helper relocations PASS
-Project: no division/modulo/wide-shift helper relocations PASS
-Shared area reciprocal: 1,000,000 random signed-64-bit quotients PASS
-Area seed/exponent boundaries and signed 64-bit limits: PASS
-Edge and projection regressions: PASS
-80-frame original/scalar/unrolled raster checksum: 86c26771 (unchanged)
-Menu guards, fixed math and flight checks: PASS
+Version 0.1.14: division-free aerodynamic ratios, tan LUT and atan octant ratio
+ARMI UREL / ARM32 / no-FP audit: PASS
+PHYSICS.o and FIXED.o: no integer division/modulo helper dependencies PASS
+Projection and whole RasterScreen division audits: PASS
+1,000,000 speed/constant ratios and atan octant ratios: exact reference match PASS
+Tangent table vs prior quantized sin/cos ratio: exact match PASS
+Area, edge and projection regressions: PASS
+80-frame raster checksum: 86c26771 (unchanged)
+60s differential flight: max position 1.719m, speed 0.172m/s
+Turn directions, climb/descent, landing, reset and menu guards: PASS
 SIS APP/RSC/AIF structure: PASS
-On-device 0.1.13 FPS: not measured
-SHA256 SIS: 94da65b3998f2b9efa0afdab565b9695ff9f44e6ddd1fbe08cd3b82f7b445767
+Terrain queries still use software division
+On-device 0.1.14 FPS: not measured
+SHA256 SIS: 1ddf1451f67759da0c9ab1dc4c95da0aa6aa51c3d05c220b6acde88bcf57b676

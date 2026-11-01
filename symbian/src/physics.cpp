@@ -2,6 +2,7 @@
 #define SKYLINER_NO_GLOBAL_API
 #endif
 #include "fixed.h"
+#include "reciprocal.h"
 #include <string.h>
 #include "game/flight.h"
 #include "world/terrain.h"
@@ -94,14 +95,14 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, Fix deltaTim
     if (!state->onGround && horizontalSpeed > MIN_TURN_SPEED) {
         /* Positive roll lowers the right wing. With forwardX=sin(yaw),
            positive yaw turns toward +X, so bank and yaw have the same sign. */
-        const Fix bankTurnRate = GRAVITY * FxTan(state->roll) / horizontalSpeed;
+        const Fix bankTurnRate = Fix::Raw(FixedSpeedDivide((GRAVITY * FxTan(state->roll)).raw,(unsigned)horizontalSpeed.raw,SpeedInverse((unsigned)horizontalSpeed.raw)));
         state->yaw += bankTurnRate * deltaTime;
         forwardX = FxSin(state->yaw) * FxCos(state->pitch);
         forwardY = FxSin(state->pitch);
         forwardZ = -FxCos(state->yaw) * FxCos(state->pitch);
         forwardSpeed = model->velocityX * forwardX + model->velocityY * forwardY + model->velocityZ * forwardZ;
     }
-    const Fix thrustFactor = Clamp((ENGINE_FULL_POWER_SPEED - forwardSpeed) / Fix::Raw(1310720), Fix::Raw(0), Fix::Raw(65536));
+    const Fix thrustFactor = Clamp(Fix::Raw(FixedSpeedDivide((ENGINE_FULL_POWER_SPEED-forwardSpeed).raw,1310720u,214748364u)), Fix::Raw(0), Fix::Raw(65536));
     const Fix thrust = ENGINE_ACCELERATION * state->throttle * thrustFactor;
     model->velocityX += forwardX * thrust * deltaTime;
     model->velocityY += forwardY * thrust * deltaTime;
@@ -123,7 +124,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, Fix deltaTim
     }
     liftCoefficient = Clamp(liftCoefficient, -Fix::Raw(22938), Fix::Raw(144179));
     if (forwardSpeed > STALL_SPEED && liftCoefficient > Fix::Raw(0)) {
-        const Fix speedRatio = forwardSpeed / CRUISE_SPEED;
+        const Fix speedRatio = Fix::Raw(FixedSpeedDivide(forwardSpeed.raw,3276800u,85899345u));
         lift = GRAVITY * speedRatio * speedRatio * liftCoefficient * FxCos(state->roll);
     }
     if (!state->onGround || lift > GRAVITY) {
@@ -144,7 +145,7 @@ void FlightModel_Step(FlightModel* model, const FlightInput* input, Fix deltaTim
     model->velocityZ *= dragMultiplier;
     airspeed = FxSqrt(model->velocityX * model->velocityX + model->velocityY * model->velocityY + model->velocityZ * model->velocityZ);
     if (airspeed > MAX_AIRSPEED) {
-        const Fix limiter = MAX_AIRSPEED / airspeed;
+        const Fix limiter = Fix::Raw(FixedSpeedDivide(MAX_AIRSPEED.raw,(unsigned)airspeed.raw,SpeedInverse((unsigned)airspeed.raw)));
         model->velocityX *= limiter; model->velocityY *= limiter; model->velocityZ *= limiter;
     }
 

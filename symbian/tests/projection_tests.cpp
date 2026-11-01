@@ -26,7 +26,29 @@ static void CheckArea(Wide n,unsigned d){
         fprintf(stderr,"Area inverse/quotient mismatch: %lld / %u\n",n,d);exit(1);
     }
 }
+static void CheckSpeed(int raw,unsigned speed){
+    unsigned inverse=SpeedInverse(speed);
+    if(inverse!=(1ULL<<48)/speed || FixedSpeedDivide(raw,speed,inverse)!=(Wide)raw*65536/speed){
+        fprintf(stderr,"Speed division mismatch: %d / %u\n",raw,speed);exit(1);
+    }
+}
 int main(){
+    const int speedInputs[]={0,1,-1,2147483647,(-2147483647-1),5898240,-5898240};
+    const unsigned speedDivisors[]={1310720,1310721,3276800,5898240,5898241,2147483647};
+    for(unsigned a=0;a<sizeof(speedInputs)/sizeof(speedInputs[0]);++a)
+        for(unsigned b=0;b<sizeof(speedDivisors)/sizeof(speedDivisors[0]);++b)CheckSpeed(speedInputs[a],speedDivisors[b]);
+    unsigned speedSeed=0x6600u;
+    for(int sample=0;sample<1000000;++sample){
+        speedSeed=speedSeed*1664525u+1013904223u;int raw=(int)speedSeed;
+        speedSeed=speedSeed*1664525u+1013904223u;unsigned speed=1310720u+(speedSeed%2146172928u);
+        CheckSpeed(raw,speed);CheckSpeed(raw,1310720u);CheckSpeed(raw,3276800u);
+        unsigned large=(speedSeed&0x7fffffffu)+1u;
+        unsigned small=((unsigned)raw&0x7fffffffu)%large;
+        if(OctantRatio(small,large)!=((UWide)small<<24)/large || OctantRatio(large,large)!=(1u<<24)){
+            fprintf(stderr,"Octant ratio mismatch\n");exit(1);
+        }
+    }
+    puts("PASS: 1,000,000 exact speed/constant division and atan octant ratio comparisons.");
     const Wide areaNumerators[]={0,1,-1,2147483647LL,-2147483648LL,
         (1LL<<48)-1,-(1LL<<48),9223372036854775807LL,(-9223372036854775807LL-1)};
     for(unsigned d=1;d<=65536;++d){

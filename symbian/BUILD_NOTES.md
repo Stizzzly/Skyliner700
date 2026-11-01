@@ -182,3 +182,29 @@ Tests cover divisors 1..65536, every normalized seed boundary/exponent, signed
 64-bit limits and one million random signed numerator/positive-area pairs.
 All 80-frame checksums match 0.1.7. Native RasterScreen has no division/modulo
 helper relocations; clipping and world/physics routines still use division.
+
+## Version 0.1.14: remove aerodynamic and trig division helpers
+
+The Q16.16 division operator remains available for other subsystems. Physics
+instead uses FixedSpeedDivide with an exact Q48 reciprocal of the raw speed.
+The dynamic denominators are guarded by speed > 20 or > 90 units, so the shared
+normalized seed followed by one correction yields the exact Q48 reciprocal.
+A product shift and one remainder correction recover signed truncation exactly.
+For fixed raw denominators 20*65536 and 50*65536, Q48 reciprocals 214748364 and
+85899345 are precomputed literals. Vmax/V remains a variable-denominator case;
+it is not replaced by division by constant Vmax. The two dynamic speeds refer
+to different stages of the tick and cannot share a single reciprocal safely.
+
+Tangent uses 360 offline entries reproducing the previous quantized sin/cos,
+including the previous zero behavior at exact poles. Angles remain radians
+with degree-indexed tables; no BAM migration or change in flight behavior.
+OctantRatio replaces atan2's 64-bit ratio division: normalize the positive
+larger magnitude (up to 2^31), multiply the smaller by the shared normalized
+reciprocal, shift, then correct at most one unit. Quotient error before correction
+is < 6/128, so the 24-bit ratio and the existing atan interpolation are exact.
+The tangent generator uses integer arithmetic and adds 1440 bytes of read-only
+table data. Tests compare tangent with the old sin/cos quotient, one million
+speed ratios (including constant denominators), and one million octant ratios.
+Native PHYSICS.o and FIXED.o import no division/modulo helpers. Terrain queries
+called by physics still use division; this is not a whole-tick no-divide claim.
+No new on-device FPS claim. Native assembly remains ARM32, integer-only.

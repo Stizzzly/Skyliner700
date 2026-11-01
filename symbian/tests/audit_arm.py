@@ -44,3 +44,8 @@ raster = re.search(r'<RasterScreen__6Soft3DRC6ScreenN21Us>:\n(.*?)(?=^[0-9a-f]+ 
 assert raster, 'Missing RasterScreen function; inspect compiler inlining before updating audit'
 assert not re.search(r'ARM_26\s+__(?:u?div|u?mod)', raster.group(1)), 'Division/modulo helper in triangle setup or raster loop'
 print('PASS: entire native RasterScreen (Z setup and rows) has no division/modulo helper calls.')
+
+for name in ('PHYSICS.o', 'FIXED.o'):
+    symbols = subprocess.check_output([str(nm), '-u', str(objects / name)], text=True, errors='replace')
+    assert not re.search(r'\b__(?:u?div|u?mod)\w*', symbols), 'Division/modulo helper remains in ' + name
+print('PASS: PHYSICS.o and FIXED.o import no integer division/modulo helpers.')

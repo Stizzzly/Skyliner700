@@ -11,6 +11,10 @@ static double Real(Fix x){return x.raw/65536.0;}
 static double Error(Fix x,double y){return fabs(Real(x)-y);}
 int main(){
     Check(sizeof(Fix)==4,"32-bit representation");
+    for(int raw=-1000000;raw<=1000000;raw+=17){
+        Fix angle=Fix::Raw(raw);
+        Check(FxTan(angle).raw==(FxSin(angle)/FxCos(angle)).raw,"tangent table matches old quantized sin/cos exactly");
+    }
     double sineError=0,atanError=0,sqrtError=0;
     for(int i=-12000;i<=12000;++i){
         Fix angle=From(i/1000.0);double e=Error(FxSin(angle),sin(Real(angle)));if(e>sineError)sineError=e;

@@ -71,4 +71,29 @@ static inline Wide AreaDivide(Wide numerator,unsigned area,UWide inverse){
     if(magnitude-q*area>=area)++q;
     return negative?(Wide)(0ULL-q):(Wide)q;
 }
+// For physics speeds >= 20 units: exact Q48 reciprocal of raw Q16.16 speed.
+static inline unsigned SpeedInverse(unsigned speed){
+    int shift;unsigned x=NormalizedInverse(speed,shift);
+    unsigned inverse=x>>(15-shift);
+    if((UWide)(inverse+1)*speed<=(1ULL<<48))++inverse;
+    return inverse;
+}
+static inline int FixedSpeedDivide(int raw,unsigned speed,unsigned inverse){
+    unsigned magnitude=raw<0?0u-(unsigned)raw:(unsigned)raw;
+    unsigned q=(unsigned)(((UWide)magnitude*inverse)>>32);
+    if((UWide)magnitude*65536-(UWide)q*speed>=speed)++q;
+    return raw<0?-(int)q:(int)q;
+}
+// floor((small<<24)/large), 0 <= small <= large <= 2^31.
+// Keep the normalized seed's precision: quotient error is below one unit.
+static inline unsigned OctantRatio(unsigned small,unsigned large){
+    int normalization;unsigned inverse=NormalizedInverse(large,normalization);
+    UWide product=(UWide)small*inverse;
+    int shift=39-normalization;
+    unsigned q;
+    if(shift>=32)q=(unsigned)(product>>32)>>(shift-32);
+    else q=((unsigned)(product>>32)<<(32-shift))|((unsigned)product>>shift);
+    if(((UWide)small<<24)-(UWide)q*large>=large)++q;
+    return q;
+}
 #endif
