@@ -208,3 +208,19 @@ speed ratios (including constant denominators), and one million octant ratios.
 Native PHYSICS.o and FIXED.o import no division/modulo helpers. Terrain queries
 called by physics still use division; this is not a whole-tick no-divide claim.
 No new on-device FPS claim. Native assembly remains ARM32, integer-only.
+
+## Version 0.1.15: terrain constant divisions and flat-region fast path
+
+The terrain uses a procedural equation, not a heightmap interpolation grid.
+For the airport blend, Q16.16 (raw*65536)/(90*65536) reduces exactly to raw/90.
+Blend distance <= 0 returns zero before evaluating hill trigonometry; distance
+>= 90 returns hills directly. The middle range preserves the original exact
+positive truncation. For the visible mesh, FixedPoint(world)/FixedPoint(100)
+similarly becomes raw/100 before the existing floor. This intentionally retains
+the former truncation-before-floor behavior for raw values -1..-99. GCC 2.9
+emits constant multiply/shift sequences for the 32-bit /90 and /100; no helper
+calls remain in TERRAIN.o or directly in Render. No grid dimension, landscape,
+or collision equation changes. A million full signed-coordinate pairs and
+explicit negative boundaries match previous heights/snaps exactly; 80 frame
+hashes and flight regressions remain unchanged. The one remaining __divdi3
+relocation in SOFT3D.o belongs to polygon clipping. No 10-15 cycle or FPS claim.

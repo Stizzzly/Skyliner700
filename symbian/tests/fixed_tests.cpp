@@ -29,6 +29,23 @@ int main(){
     Check(FxFloor(From(-0.1))==-1&&FxFloor(From(-1))==-1,"negative floor");
     Check((Fix::Raw(2147483647)+Fix(1)).raw==2147483647,"addition saturates");
     Check((Fix(30000)*Fix(2)).raw==2147483647,"multiplication saturates");
+    unsigned terrainSeed=0x6600u;
+    for(int sample=0;sample<1000000;++sample){
+        terrainSeed=terrainSeed*1664525u+1013904223u;Fix x=Fix::Raw((int)terrainSeed);
+        terrainSeed=terrainSeed*1664525u+1013904223u;Fix z=Fix::Raw((int)terrainSeed);
+        Fix hills=FxSin(x*Fix::Raw(786))*FxCos(z*Fix::Raw(721))*Fix::Raw(1114112)+FxSin((x+z)*Fix::Raw(426))*Fix::Raw(524288);
+        Fix distance=FxMax(FxAbs(x)-Fix::Raw(6553600),FxAbs(z)-Fix::Raw(23592960));
+        Fix weight=distance/Fix::Raw(5898240);
+        if(weight<Fix(0))weight=Fix(0);if(weight>Fix(1))weight=Fix(1);
+        Check(Terrain_GetHeight(x,z).raw==(hills*weight).raw,"terrain matches original formula exactly");
+        Check(FxFloor(Fix::Raw(x.raw/100))==FxFloor(x/100),"grid snap exact for signed raw coordinates");
+    }
+    const int boundaries[]={(-2147483647-1),-6553601,-6553600,-6553599,-101,-100,-99,-1,0,1,99,100,101,6553599,6553600,6553601,2147483647};
+    for(unsigned b=0;b<sizeof(boundaries)/sizeof(boundaries[0]);++b){
+        Fix x=Fix::Raw(boundaries[b]);
+        Check(FxFloor(Fix::Raw(x.raw/100))==FxFloor(x/100),"negative grid boundaries retain previous rounding");
+    }
+    puts("PASS: 1,000,000 exact terrain heights and signed grid snaps.");
     double maxHeightError=0;
     for(int x=-1000;x<=1000;x+=41)for(int z=-1000;z<=1000;z+=43){
         double e=Error(Terrain_GetHeight(Fix(x),Fix(z)),Reference::Terrain_GetHeight((float)x,(float)z));

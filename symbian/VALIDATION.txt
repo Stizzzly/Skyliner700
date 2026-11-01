@@ -1,14 +1,14 @@
-Version 0.1.14: division-free aerodynamic ratios, tan LUT and atan octant ratio
+Version 0.1.15: terrain and grid snap without runtime divider helpers
 ARMI UREL / ARM32 / no-FP audit: PASS
-PHYSICS.o and FIXED.o: no integer division/modulo helper dependencies PASS
-Projection and whole RasterScreen division audits: PASS
-1,000,000 speed/constant ratios and atan octant ratios: exact reference match PASS
-Tangent table vs prior quantized sin/cos ratio: exact match PASS
-Area, edge and projection regressions: PASS
+PHYSICS.o, FIXED.o, TERRAIN.o: no integer division/modulo helpers PASS
+Direct Render/grid setup: no division/modulo helper relocations PASS
+RasterScreen and projection division audits: PASS
+1,000,000 exact terrain heights and signed grid snaps + boundaries PASS
+Speed, atan, area, edge and projection regressions: PASS
 80-frame raster checksum: 86c26771 (unchanged)
 60s differential flight: max position 1.719m, speed 0.172m/s
-Turn directions, climb/descent, landing, reset and menu guards: PASS
+Turn directions, landing and menu guards: PASS
 SIS APP/RSC/AIF structure: PASS
-Terrain queries still use software division
-On-device 0.1.14 FPS: not measured
-SHA256 SIS: 1ddf1451f67759da0c9ab1dc4c95da0aa6aa51c3d05c220b6acde88bcf57b676
+SOFT3D.o retains one __divdi3 call site in clipping
+On-device 0.1.15 FPS: not measured
+SHA256 SIS: fe0b3e2d6bc337a71228b5009aeabaa1cbeac944b2dac0bf630652f96a503bdf

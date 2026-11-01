@@ -183,7 +183,9 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     forward=V(sy*Fix::Raw(64583),-Fix::Raw(11135),-cy*Fix::Raw(64583));
     right=V(cy,0,sy);up=Cross(right,forward);
     /* 8x8 cells, 100m each: retain the 800m footprint with 128 triangles. */
-    int ox=(int)FxFloor(s.x/100)*100,oz=(int)FxFloor(s.z/100)*100;
+    // Cancel the Q16.16 scales before division by constant 100.
+    // Keep the former truncation-before-floor behavior at negative boundaries.
+    int ox=FxFloor(Fix::Raw(s.x.raw/100))*100,oz=FxFloor(Fix::Raw(s.z.raw/100))*100;
     if(ox!=terrainX||oz!=terrainZ){
         terrainX=ox;terrainZ=oz;
         for(int tz=0;tz<=8;++tz)for(int tx=0;tx<=8;++tx){

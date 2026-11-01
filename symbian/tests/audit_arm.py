@@ -45,7 +45,12 @@ assert raster, 'Missing RasterScreen function; inspect compiler inlining before 
 assert not re.search(r'ARM_26\s+__(?:u?div|u?mod)', raster.group(1)), 'Division/modulo helper in triangle setup or raster loop'
 print('PASS: entire native RasterScreen (Z setup and rows) has no division/modulo helper calls.')
 
-for name in ('PHYSICS.o', 'FIXED.o'):
+for name in ('PHYSICS.o', 'FIXED.o', 'TERRAIN.o'):
     symbols = subprocess.check_output([str(nm), '-u', str(objects / name)], text=True, errors='replace')
     assert not re.search(r'\b__(?:u?div|u?mod)\w*', symbols), 'Division/modulo helper remains in ' + name
-print('PASS: PHYSICS.o and FIXED.o import no integer division/modulo helpers.')
+print('PASS: PHYSICS.o, FIXED.o and TERRAIN.o import no integer division/modulo helpers.')
+
+render = re.search(r'<Render__6Soft3DPUsiRC11FlightState>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
+assert render, 'Missing native Render function'
+assert not re.search(r'ARM_26\s+__(?:u?div|u?mod)', render.group(1)), 'Division/modulo helper remains in grid setup or Render'
+print('PASS: native Render/grid setup has no division/modulo helper calls.')

@@ -1,16 +1,14 @@
 #include "fixed.h"
 #include "world/terrain.h"
 
-static Fix Clamp(Fix value, Fix minimum, Fix maximum) {
-    if (value < minimum) return minimum;
-    if (value > maximum) return maximum;
-    return value;
-}
-
 Fix Terrain_GetHeight(Fix x, Fix z) {
-    const Fix hills = FxSin(x * Fix::Raw(786)) * FxCos(z * Fix::Raw(721)) * Fix::Raw(1114112) + FxSin((x + z) * Fix::Raw(426)) * Fix::Raw(524288);
     const Fix airportDistance = FxMax(FxAbs(x) - Fix::Raw(6553600), FxAbs(z) - Fix::Raw(23592960));
-    return hills * Clamp(airportDistance / Fix::Raw(5898240), Fix::Raw(0), Fix::Raw(65536));
+    // Flat airport region needs no sine/cosine or normalization.
+    if(airportDistance.raw<=0)return Fix::Raw(0);
+    const Fix hills = FxSin(x * Fix::Raw(786)) * FxCos(z * Fix::Raw(721)) * Fix::Raw(1114112) + FxSin((x + z) * Fix::Raw(426)) * Fix::Raw(524288);
+    if(airportDistance.raw>=5898240)return hills;
+    // (raw*65536)/(90*65536) == raw/90. GCC emits constant multiply/shift.
+    return hills * Fix::Raw(airportDistance.raw/90);
 }
 
 int Terrain_IsRunway(Fix x, Fix z) { return FxAbs(x) <= Fix::Raw(983040) && FxAbs(z) <= Fix::Raw(19660800); }
