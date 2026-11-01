@@ -28,3 +28,10 @@ for path in paths:
     division = [line.strip() for line in symbols.splitlines() if re.search(r'__(?:u?div|u?mod|aeabi_.*div)', line)]
     print(path.name + ': ARM32; integer division dependencies: ' + (', '.join(division) or 'none'))
 print('PASS: all six objects disassemble as 32-bit ARM instructions; no Thumb instructions found.')
+
+assembly = subprocess.check_output([str(objdump), '-dr', str(objects / 'SOFT3D.o')], text=True, errors='replace')
+# Keep local .L labels inside the body; stop at the next named C++ function.
+project = re.search(r'<Project__FRC3Vec>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
+assert project, 'Missing native Project function; inspect compiler inlining before updating audit'
+assert not re.search(r'ARM_26\s+__(?:u?div|u?mod|lshrdi)', project.group(1)), 'Projection calls division/modulo/variable-wide-shift helper'
+print('PASS: native Project has no division, modulo or variable 64-bit shift helper calls.')

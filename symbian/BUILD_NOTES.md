@@ -135,3 +135,20 @@ This does not assert that linked SDK libraries contain no Thumb code.
 No mode switch or FPS improvement is claimed: the renderer was already ARM.
 Software integer division remains present; ARM920T has no SDIV/UDIV instruction.
 Reference: https://developer.arm.com/community/arm-community-blogs/b/architectures-and-processors-blog/posts/divide-and-conquer
+
+## Version 0.1.11: exact division-free perspective
+
+DepthInverse uses a read-only 256-entry/1024-byte table, binary normalization
+(no CLZ requirement), and two unsigned integer Newton steps. Seeds are lower
+bounds for 2^63/n with normalized n in [2^31,2^32). Initial relative error is
+below 1/256. Each step squares this error with less than two units lost to
+integer rounding; after two steps the normalized absolute error is below six
+units. The Q40 conversion shifts at least nine bits for z >= 131072, so one
+bounded remainder correction restores floor(2^40/z) exactly. x stays below
+2^32, permitting a 32-bit variable shift instead of __lshrdi3.
+Existing bounded quotient corrections preserve truncation of x/y and Z depth.
+All 80 image checksums equal 0.1.7; a million vectors and every table boundary
+at each normalization exponent match exact reference division. Native Project
+has no division/modulo/wide-shift helper relocations. Other renderer paths and
+physics still use software integer division. No on-device FPS claim for 0.1.11.
+Regenerate the table with `python tests/generate_reciprocal.py`.

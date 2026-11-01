@@ -1,9 +1,10 @@
-Version 0.1.10 � corrected coordinated turn direction
-New turn regression reproduces failure before fix: CONFIRMED
-Left/right at 0/90/180/270 degree initial headings, yaw/lateral displacement/inside wing: PASS
-Full desktop renderer, projection, menu and flight checks: PASS
-ARMI UREL build: PASS
-Native six-object no-FP/global-constructor audit: PASS
-APP/RSC/AIF SIS payload comparisons: PASS
-Steering regression validation: desktop; no separate device result recorded
-SHA256 SIS: f7fba383ef14f7f3d7cb68db84e48c9d29ffaf5a09ee6dadbcaeb342e0a8ce92
+Version 0.1.11: exact LUT/Newton perspective without runtime division
+ARMI UREL native build: PASS
+Six-object ARM32 / no floating point / no global constructors: PASS
+Project: no integer division, modulo or variable-wide-shift helper calls: PASS
+1,000,000 random vectors + normalized seed boundaries: exact projection and Q40 inverse PASS
+80-frame baseline/scalar/unrolled raster checksums: identical 86c26771
+Menu guards, fixed math and differential flight checks: PASS
+Legacy SIS APP/RSC/AIF structure: PASS
+On-device 0.1.11 FPS: not measured
+SHA256 SIS: 94dddbbef78972469c306cef92df441363051bdf1b8dbc4ef44247eb094e77bd

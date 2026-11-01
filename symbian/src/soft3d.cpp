@@ -1,6 +1,7 @@
 #include "soft3d.h"
 #include "world/terrain.h"
 #include "fixed.h"
+#include "reciprocal.h"
 #include <string.h>
 #include <stddef.h>
 #include "plane.inc"
@@ -96,7 +97,7 @@ static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse)
     return negative?-(int)q:(int)q;
 }
 static Screen Project(const Vec& v){
-    UWide inverse=(UWide)((1LL<<40)/v.z);
+    UWide inverse=DepthInverse(v.z);
     Screen s;s.x=SKY_W*8+ReciprocalDivide((Wide)v.x*1000,v.z,inverse);
     s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*1000,v.z,inverse);
     s.z=ReciprocalDivide(30000LL*65536,v.z,inverse);return s;
