@@ -167,3 +167,18 @@ Tests cover all divisors 1..65536 with boundary numerators, plus a million rando
 32-bit cases. All 80 baseline frame hashes are unchanged (86c26771). Native
 SOFT3D.o no longer imports __divsi3; __divdi3 (clipping/gradient setup) and
 __modsi3 (polygon indexing) remain. No device FPS claim for 0.1.12.
+
+## Version 0.1.13: shared area reciprocal for Z-plane setup
+
+AreaInverse reuses the existing normalized LUT seed. Two full-precision integer
+Newton steps and a bounded correction compute floor(2^63/area) once per triangle.
+ProductShift63 uses four 32x32 partial products with explicit carries, without
+128-bit compiler types. The three signed numerators use this common reciprocal;
+one remainder correction restores exact truncation toward zero. Signed 64-bit
+minimum is handled using unsigned magnitude arithmetic. No runtime division is
+used for area reciprocal or quotient computation. Extra multiplies and shifts
+are required; there is no 5-7 cycle or on-device performance claim.
+Tests cover divisors 1..65536, every normalized seed boundary/exponent, signed
+64-bit limits and one million random signed numerator/positive-area pairs.
+All 80-frame checksums match 0.1.7. Native RasterScreen has no division/modulo
+helper relocations; clipping and world/physics routines still use division.

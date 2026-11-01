@@ -42,4 +42,33 @@ static inline unsigned EdgeFloor(unsigned numerator,unsigned divisor,UWide inver
     if(numerator-(UWide)q*divisor>=divisor)++q;
     return q;
 }
+// floor(a*b/2^63), using four 32x32 products instead of a 128-bit type.
+// Callers keep a,b <= 2^63, so the result fits unsigned 64 bits.
+static inline UWide ProductShift63(UWide a,UWide b){
+    unsigned al=(unsigned)a,ah=(unsigned)(a>>32);
+    unsigned bl=(unsigned)b,bh=(unsigned)(b>>32);
+    UWide ll=(UWide)al*bl,lh=(UWide)al*bh,hl=(UWide)ah*bl;
+    UWide middle=(ll>>32)+(unsigned)lh+(unsigned)hl;
+    UWide high=(UWide)ah*bh+(lh>>32)+(hl>>32)+(middle>>32);
+    return (high<<1)|((middle>>31)&1);
+}
+// One shared exact Q63 reciprocal for the three signed Z-plane numerators.
+static inline UWide AreaInverse(unsigned area){
+    int shift;unsigned seed=NormalizedInverse(area,shift);
+    UWide inverse=(UWide)seed<<shift;
+    UWide residual=(1ULL<<63)-inverse*area;
+    inverse+=ProductShift63(inverse,residual);
+    residual=(1ULL<<63)-inverse*area;
+    inverse+=ProductShift63(inverse,residual);
+    // Two full-precision steps leave at most one unit of reciprocal error.
+    if((inverse+1)*area<=(1ULL<<63))++inverse;
+    return inverse;
+}
+static inline Wide AreaDivide(Wide numerator,unsigned area,UWide inverse){
+    bool negative=numerator<0;
+    UWide magnitude=negative?0ULL-(UWide)numerator:(UWide)numerator;
+    UWide q=ProductShift63(magnitude,inverse);
+    if(magnitude-q*area>=area)++q;
+    return negative?(Wide)(0ULL-q):(Wide)q;
+}
 #endif

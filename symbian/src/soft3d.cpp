@@ -139,9 +139,10 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     if(maxy>=SKY_H)maxy=SKY_H-1;
     int row[3],dx[3],dy[3];
     for(int e=0;e<3;++e){Screen u=s[(e+1)%3],v=s[(e+2)%3];row[e]=Edge(u,v,minx*16+8,miny*16+8);dx[e]=-(v.y-u.y)*16;dy[e]=(v.x-u.x)*16;}
-    int dzx=(int)((((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256)/area);
-    int dzy=(int)((((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256)/area);
-    int rowz=(int)((((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256)/area);
+    UWide inverseArea=AreaInverse((unsigned)area);
+    int dzx=(int)AreaDivide(((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256,(unsigned)area,inverseArea);
+    int dzy=(int)AreaDivide(((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256,(unsigned)area,inverseArea);
+    int rowz=(int)AreaDivide(((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256,(unsigned)area,inverseArea);
 #ifndef SKY_REFERENCE_RASTER
     unsigned edgeDivisor[3];UWide edgeInverse[3];
     for(int edge=0;edge<3;++edge){

@@ -1,11 +1,12 @@
-Version 0.1.12: cached exact edge reciprocals; no per-scanline division
-ARMI UREL build and six-object ARM32/no-FP audit: PASS
-Native renderer __divsi3 dependency absent: PASS
-Native Project division/modulo/wide-shift helpers absent: PASS
-Edge floor/ceil: divisors 1..65536 boundaries + 1,000,000 random cases PASS
-Projection: 1,000,000 random vectors + seed boundaries PASS
+Version 0.1.13: shared exact Q63 area reciprocal
+ARMI UREL build, ARM32 and no-FP audit: PASS
+Entire RasterScreen: no division/modulo helper relocations PASS
+Project: no division/modulo/wide-shift helper relocations PASS
+Shared area reciprocal: 1,000,000 random signed-64-bit quotients PASS
+Area seed/exponent boundaries and signed 64-bit limits: PASS
+Edge and projection regressions: PASS
 80-frame original/scalar/unrolled raster checksum: 86c26771 (unchanged)
-Menu guards, fixed math, flight checks: PASS
+Menu guards, fixed math and flight checks: PASS
 SIS APP/RSC/AIF structure: PASS
-On-device 0.1.12 FPS: not measured
-SHA256 SIS: 7d7ede4eaea239e1e1c0676c05769469669a34716a886e7976441b1a94662787
+On-device 0.1.13 FPS: not measured
+SHA256 SIS: 94da65b3998f2b9efa0afdab565b9695ff9f44e6ddd1fbe08cd3b82f7b445767

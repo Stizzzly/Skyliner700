@@ -20,7 +20,33 @@ static void CheckEdge(unsigned n,unsigned d){
         fprintf(stderr,"Edge ceil mismatch\n");exit(1);
     }
 }
+static void CheckArea(Wide n,unsigned d){
+    UWide inverse=AreaInverse(d);
+    if(inverse!=(1ULL<<63)/d || AreaDivide(n,d,inverse)!=n/(Wide)d){
+        fprintf(stderr,"Area inverse/quotient mismatch: %lld / %u\n",n,d);exit(1);
+    }
+}
 int main(){
+    const Wide areaNumerators[]={0,1,-1,2147483647LL,-2147483648LL,
+        (1LL<<48)-1,-(1LL<<48),9223372036854775807LL,(-9223372036854775807LL-1)};
+    for(unsigned d=1;d<=65536;++d){
+        for(unsigned k=0;k<sizeof(areaNumerators)/sizeof(areaNumerators[0]);++k)CheckArea(areaNumerators[k],d);
+    }
+    for(int bit=0;bit<=30;++bit)for(int bin=256;bin<512;++bin){
+        unsigned center=(unsigned)(((UWide)bin<<23)>>(31-bit));
+        for(int delta=-1;delta<=1;++delta){
+            Wide d=(Wide)center+delta;
+            if(d>0&&d<=2147483647LL){CheckArea(9223372036854775807LL,(unsigned)d);CheckArea((-9223372036854775807LL-1),(unsigned)d);}
+        }
+    }
+    unsigned areaSeed=0x92006600u;
+    for(int sample=0;sample<1000000;++sample){
+        areaSeed=areaSeed*1664525u+1013904223u;unsigned hi=areaSeed;
+        areaSeed=areaSeed*1664525u+1013904223u;unsigned lo=areaSeed;
+        areaSeed=areaSeed*1664525u+1013904223u;unsigned d=areaSeed&0x7fffffffu;if(!d)d=1;
+        CheckArea((Wide)(((UWide)hi<<32)|lo),d);
+    }
+    puts("PASS: shared Q63 area reciprocal, signed 64-bit limits and 1,000,000 random quotients.");
     const unsigned edgeNumerators[]={0,1,2,15,16,17,65535,65536,2147483647u,2147483648u};
     for(unsigned d=1;d<=65536;++d){
         for(unsigned i=0;i<sizeof(edgeNumerators)/sizeof(edgeNumerators[0]);++i)CheckEdge(edgeNumerators[i],d);
