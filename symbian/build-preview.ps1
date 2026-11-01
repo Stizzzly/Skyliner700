@@ -18,7 +18,7 @@ try {
             if($LASTEXITCODE -ne 0 -or $comparison -ne $normal){throw "Raster output differs for $variant"}
         } finally { Pop-Location }
     }
-    Write-Output 'PASS: unrolled spans, scalar spans and original coverage produce identical 80-frame checksums.'
+    Write-Output 'PASS: paired spans, scalar spans and original coverage produce identical 80-frame checksums.'
     $baseline=@($common | Where-Object { $_ -ne 'src/soft3d.cpp' })
     & $Compiler -Itests/reference_renderer @baseline tests/reference_renderer/soft3d.cpp tests/smoke.cpp -o tests/smoke-baseline.exe
     if($LASTEXITCODE -ne 0){throw 'Baseline renderer build failed'}

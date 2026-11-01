@@ -1,14 +1,11 @@
-Version 0.1.15: terrain and grid snap without runtime divider helpers
-ARMI UREL / ARM32 / no-FP audit: PASS
-PHYSICS.o, FIXED.o, TERRAIN.o: no integer division/modulo helpers PASS
-Direct Render/grid setup: no division/modulo helper relocations PASS
-RasterScreen and projection division audits: PASS
-1,000,000 exact terrain heights and signed grid snaps + boundaries PASS
-Speed, atan, area, edge and projection regressions: PASS
+Version 0.1.16: scheduled two-pixel ARM span kernel
+ARMI UREL / ARM32 / no-FP and existing division audits: PASS
+ARM pair loop: early Z loads, packed/mixed stores, no stack accesses/calls PASS
+Unicorn: 5000 actual ARM pair + 5000 native wrapper cases, masks/alignment/tails/guards/ABI PASS
+Portable: 10000 span cases, masks/alignment/tails/depth truncation/guards PASS
 80-frame raster checksum: 86c26771 (unchanged)
-60s differential flight: max position 1.719m, speed 0.172m/s
-Turn directions, landing and menu guards: PASS
+Projection, reciprocal, terrain, flight and menu regressions: PASS
 SIS APP/RSC/AIF structure: PASS
-SOFT3D.o retains one __divdi3 call site in clipping
-On-device 0.1.15 FPS: not measured
-SHA256 SIS: fe0b3e2d6bc337a71228b5009aeabaa1cbeac944b2dac0bf630652f96a503bdf
+Unicorn does not model ARM920T cache/stalls/timing
+On-device 0.1.16 FPS: not measured; compare with 0.1.15
+SHA256 SIS: ea28c02c58d9c6f0e781762f86cb128c9dd66f8bb99147ebb99a5d14c45f9749

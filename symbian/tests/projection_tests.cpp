@@ -32,7 +32,34 @@ static void CheckSpeed(int raw,unsigned speed){
         fprintf(stderr,"Speed division mismatch: %d / %u\n",raw,speed);exit(1);
     }
 }
+static void CheckSpanPairs(){
+    unsigned seed=0x6600u;
+    for(int sample=0;sample<10000;++sample){
+        Pixel pixels[128],depths[128],expectedPixels[128],expectedDepths[128];
+        for(int i=0;i<128;++i){
+            seed=seed*1664525u+1013904223u;pixels[i]=(Pixel)seed;
+            seed=seed*1664525u+1013904223u;depths[i]=(Pixel)seed;
+        }
+        int offset=8+(sample&1),zoffset=8+((sample>>1)&1),count=sample%105;
+        int z=(sample%90000-10000)*256,dz=(sample%2001)-1000,bias=(sample%31)-15;
+        Pixel color=(Pixel)(seed>>16);
+        if(sample<4){z=100<<8;dz=0;bias=0;count=32;
+            for(int i=0;i<count;++i)depths[zoffset+i]=(sample>>(i&1))&1?0:100;
+        }
+        memcpy(expectedPixels,pixels,sizeof(pixels));memcpy(expectedDepths,depths,sizeof(depths));
+        int current=z;
+        for(int i=0;i<count;++i){int d=(current>>8)+bias;
+            if(d>expectedDepths[zoffset+i]){expectedDepths[zoffset+i]=(Pixel)d;expectedPixels[offset+i]=color;}current+=dz;
+        }
+        DrawSpan(pixels+offset,depths+zoffset,count,z,dz,bias,color);
+        if(memcmp(pixels,expectedPixels,sizeof(pixels))||memcmp(depths,expectedDepths,sizeof(depths))){
+            fprintf(stderr,"Span pair/alignment/tail mismatch: %d\n",sample);exit(1);
+        }
+    }
+    puts("PASS: 10000 span cases, four Z masks, pointer parity, odd tails and full buffer guards.");
+}
 int main(){
+    CheckSpanPairs();
     const int speedInputs[]={0,1,-1,2147483647,(-2147483647-1),5898240,-5898240};
     const unsigned speedDivisors[]={1310720,1310721,3276800,5898240,5898241,2147483647};
     for(unsigned a=0;a<sizeof(speedInputs)/sizeof(speedInputs[0]);++a)

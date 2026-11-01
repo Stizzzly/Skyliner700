@@ -54,3 +54,16 @@ render = re.search(r'<Render__6Soft3DPUsiRC11FlightState>:\n(.*?)(?=^[0-9a-f]+ <
 assert render, 'Missing native Render function'
 assert not re.search(r'ARM_26\s+__(?:u?div|u?mod)', render.group(1)), 'Division/modulo helper remains in grid setup or Render'
 print('PASS: native Render/grid setup has no division/modulo helper calls.')
+
+kernel = re.search(r'<SkyDrawPairsArm>:\n(.*?)(?=^[0-9a-f]+ <DrawSpan)', assembly, re.M | re.S)
+assert kernel, 'Missing ARM pair kernel'
+ops=re.findall(r'^\s*[0-9a-f]+:\s+[0-9a-f]{8}\s+(\w+)\s+(.*)',kernel.group(1),re.M)
+start=next(i for i,(op,args) in enumerate(ops) if op=='ldrh')
+end=next(i for i,(op,args) in enumerate(ops) if op=='ldmia')
+loop=ops[start:end]
+assert [op for op,args in loop[:2]]==['ldrh','ldrh'], 'Pair Z loads are not first'
+assert next(i for i,(op,args) in enumerate(loop) if op.startswith('cmp'))>=8, 'Z load-use gap lost'
+assert not any(re.search(r'\b(?:sp|r13)\b',args) or op in ('bl','blx') for op,args in loop), 'Pair-loop stack traffic or call'
+assert sum(op=='str' for op,args in loop)==2, 'Missing packed framebuffer/depth stores'
+assert sum(op=='strgth' for op,args in loop)==4, 'Missing mixed-result halfword stores'
+print('PASS: pair kernel loads Z early, uses packed/mixed stores, and has no loop stack traffic/calls.')

@@ -224,3 +224,32 @@ or collision equation changes. A million full signed-coordinate pairs and
 explicit negative boundaries match previous heights/snaps exactly; 80 frame
 hashes and flight regressions remain unchanged. The one remaining __divdi3
 relocation in SOFT3D.o belongs to polygon clipping. No 10-15 cycle or FPS claim.
+
+## Version 0.1.16: scheduled two-pixel ARM span kernel
+
+src/span_arm.inc is a small C-ABI ARMv4T function assembled by the SDK. GCC 2.9
+has a 10-operand inline-asm limit, so the register kernel is emitted as global
+assembly in the same translation unit. r0-r10 and r12 hold loop state; r11 is
+untouched, lr is the return link. r4-r10/lr are saved once, with stack arguments
+loaded before the loop. There are no stack references, spills or calls inside
+the loop. Two LDRH instructions precede six independent depth/math instructions
+before the first CMP. The all-pass path uses two word STRs (color and packed Z);
+the mixed path uses conditional halfword stores. Depth comparison remains
+signed greater-than (inverse depth), and packing truncates each depth to 16 bits.
+
+A scalar prefix aligns both pointers when their halfword parity agrees. Odd tails,
+short spans (<8 after prefix) and incompatible alignments use the prior halfword
+path. The threshold amortizes call/callee-save overhead; it is not a measured
+optimum. Buffers are software scene/depth buffers in RAM, not directly the DSA
+screen memory. Existing scaling and DSA presentation remain unchanged.
+
+Portable equivalence tests cover 10000 spans, all four Z masks, both pointer
+parities, odd tails, depth truncation and full buffer guards. tests/arm_span_tests.py
+executes actual SDK COFF machine code in Unicorn: 5000 direct pair cases plus
+5000 native full-span cases, with C-call relocation, memory guards and preserved
+register ABI checks. Run `pip install unicorn`, then
+`python tests/arm_span_tests.py SDK path/to/SOFT3D.o`.
+Static audit checks load scheduling, packed/mixed stores and no loop stack traffic.
+All 80 baseline image hashes match 86c26771. No zero-stall/cycle/FPS claim:
+Unicorn verifies instruction semantics, not ARM920T cache/bus performance.
+Compare hardware results against the retained dist/Skyliner700-0.1.15.sis.

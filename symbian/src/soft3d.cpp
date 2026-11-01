@@ -106,9 +106,40 @@ static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.
 // Horizontal span: coverage has already been resolved once for the whole row.
 // Only the required Z test remains per pixel. Advance pointers and depth once.
 #ifndef SKY_REFERENCE_RASTER
+// Called only with word-aligned destination/depth pointers and positive pairs.
+#if defined(__MARM__) && defined(__GCC32__) && !defined(SKY_SCALAR_SPANS)
+#include "span_arm.inc"
+#endif
 static void DrawSpan(Pixel* dst,Pixel* zbuf,int count,int z,int dz,int bias,Pixel color){
 #define SPAN_PIXEL do { int d=(z>>8)+bias; if(d>(int)ReadPixel(zbuf)){*zbuf=(Pixel)d;*dst=color;} ++dst;++zbuf;z+=dz; } while(0)
 #ifndef SKY_SCALAR_SPANS
+    // A single prefix pixel aligns both pointers when their halfword parity agrees.
+    if(count>0&&((size_t)dst&2)&&((size_t)zbuf&2)){SPAN_PIXEL;--count;}
+    // Amortize the ARM call/register-save overhead across at least four pairs.
+    if(count>=8&&(((size_t)dst|(size_t)zbuf)&3)==0){
+        unsigned packed=(unsigned)color|((unsigned)color<<16);
+#if defined(__MARM__) && defined(__GCC32__)
+        int pairs=count>>1;
+        SkyDrawPairsArm(dst,zbuf,pairs,z,dz,bias,packed);
+        int advance=pairs*2;dst+=advance;zbuf+=advance;z+=dz*advance;count&=1;
+#else
+        // Portable equivalent: both reads precede tests/stores, preserving all masks.
+        while(count>=2){
+            unsigned old0=ReadPixel(zbuf),old1=ReadPixel(zbuf+1);
+            int d0=(z>>8)+bias;z+=dz;int d1=(z>>8)+bias;z+=dz;
+            bool pass0=d0>(int)old0,pass1=d1>(int)old1;
+            if(pass0&&pass1){
+                WritePair(dst,packed);
+                WritePair(zbuf,(unsigned)(Pixel)d0|((unsigned)(Pixel)d1<<16));
+            }else{
+                if(pass0){zbuf[0]=(Pixel)d0;dst[0]=color;}
+                if(pass1){zbuf[1]=(Pixel)d1;dst[1]=color;}
+            }
+            dst+=2;zbuf+=2;count-=2;
+        }
+#endif
+    }
+    // Different pointer alignment: retain the proven halfword path.
     while(count>=8){
         SPAN_PIXEL;SPAN_PIXEL;SPAN_PIXEL;SPAN_PIXEL;
         SPAN_PIXEL;SPAN_PIXEL;SPAN_PIXEL;SPAN_PIXEL;
