@@ -5,4 +5,4 @@ NAME DIN1
 RESOURCE RSS_SIGNATURE { }
 RESOURCE TBUF { buf="DeviceInventory"; }
 RESOURCE EIK_APP_INFO { menubar=0; cba=r_inventory_keys; }
-RESOURCE CBA r_inventory_keys { buttons={ CBA_BUTTON { id=0x7201; txt="Scan"; }, CBA_BUTTON { id=EAknSoftkeyExit; txt="Exit"; } }; }
+RESOURCE CBA r_inventory_keys { buttons={ CBA_BUTTON { id=0x7201; txt="Send log"; }, CBA_BUTTON { id=EAknSoftkeyExit; txt="Exit"; } }; }
