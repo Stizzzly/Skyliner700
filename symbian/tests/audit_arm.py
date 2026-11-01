@@ -17,3 +17,14 @@ bad = [line for line in output.splitlines() if forbidden.search(line)]
 assert not bad, 'Floating-point/helper/global-init symbols:\n' + '\n'.join(bad)
 print('PASS: all six native ARM objects contain no floating-point/libm helpers or global constructors.')
 print('Integer 64-bit division helpers are allowed; these are not floating point.')
+
+objdump = sdk / 'epoc32/gcc/bin/objdump.exe'
+for path in paths:
+    assembly = subprocess.check_output([str(objdump), '-d', str(path)], text=True, errors='replace')
+    instructions = re.findall(r'^\s*[0-9a-f]+:\s+([0-9a-f]+)\s+\S+', assembly, re.M | re.I)
+    assert instructions, 'No decoded instructions: ' + path.name
+    assert all(len(word) == 8 for word in instructions), 'Non-32-bit instruction: ' + path.name
+    symbols = subprocess.check_output([str(nm), '-u', str(path)], text=True, errors='replace')
+    division = [line.strip() for line in symbols.splitlines() if re.search(r'__(?:u?div|u?mod|aeabi_.*div)', line)]
+    print(path.name + ': ARM32; integer division dependencies: ' + (', '.join(division) or 'none'))
+print('PASS: all six objects disassemble as 32-bit ARM instructions; no Thumb instructions found.')

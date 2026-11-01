@@ -119,3 +119,19 @@ yaw a right turn. The bank yaw rate and lateral lift now use matching positive
 signs. Key 7/9 yaw mapping is adjusted accordingly. A new regression rejected
 the original implementation, then passed both turn directions at four headings.
 The float oracle is explicitly patched with the same intentional physical fix.
+
+## ARM instruction mode audit
+
+The existing 0.1.10 phone build already uses 32-bit ARM instructions, not Thumb.
+SDK target ARMI selects `-march=armv4t -mthumb-interwork` using `gcc`;
+THUMB selects the separate `thumb-epoc-pe-gcc` compiler. Interworking enables
+calls between instruction sets; it does not select Thumb instruction emission.
+The existing object disassembly includes ARM SMULL and conditional instructions.
+
+`fixed.h`, included by all six application modules, now rejects Symbian Thumb
+compilation. `tests/audit_arm.py` also checks that all decoded application
+instructions are 32 bits and reports integer division helper dependencies.
+This does not assert that linked SDK libraries contain no Thumb code.
+No mode switch or FPS improvement is claimed: the renderer was already ARM.
+Software integer division remains present; ARM920T has no SDIV/UDIV instruction.
+Reference: https://developer.arm.com/community/arm-community-blogs/b/architectures-and-processors-blog/posts/divide-and-conquer

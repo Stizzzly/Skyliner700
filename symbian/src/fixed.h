@@ -1,5 +1,9 @@
 #ifndef SKY_FIXED_H
 #define SKY_FIXED_H
+// ARMI permits interworking, but our application code must remain ARM/A32.
+#if defined(__SYMBIAN32__) && (defined(__thumb__) || defined(__thumb))
+#error Skyliner700 requires 32-bit ARM code; build ARMI, not THUMB.
+#endif
 // Signed Q16.16. No floating-point constructors or conversions are provided.
 // SKY_CONST values and lookup tables are generated offline with Python.
 typedef long long Wide;
