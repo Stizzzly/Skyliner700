@@ -1,0 +1,11 @@
+TARGET DeviceInventory.app
+TARGETTYPE app
+EXPORTUNFROZEN
+UID 0x100039CE 0x0F700662
+TARGETPATH \system\apps\DeviceInventory
+SOURCEPATH ..\src
+SOURCE inventory.cpp
+USERINCLUDE ..\src
+SYSTEMINCLUDE \epoc32\include
+RESOURCE DeviceInventory.rss
+LIBRARY euser.lib apparc.lib cone.lib eikcore.lib avkon.lib ws32.lib gdi.lib efsrv.lib bafl.lib

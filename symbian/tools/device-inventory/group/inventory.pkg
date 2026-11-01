@@ -1,0 +1,5 @@
+&EN
+#{"DeviceInventory"},(0x0F700662),0,1,0
+(0x101F7960),0,0,0,{"Series60ProductID"}
+"@APP@"-"!:\system\apps\DeviceInventory\DeviceInventory.app"
+"@RSC@"-"!:\system\apps\DeviceInventory\DeviceInventory.rsc"

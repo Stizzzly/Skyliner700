@@ -1,0 +1,8 @@
+DeviceInventory 0.1.0
+Original S60 SDK 2.0 ARMI UREL build: PASS
+Separate UID 0F700662 / ARM APP+RSC legacy SIS: PASS
+APP/RSC SDK payload identity: PASS
+Native imports include three TFind iterators
+Native imports exclude LoadLogicalDevice/DoCreate/DoControl/DoRequest/CaptureEventHook
+Device driver inventory: awaiting phone result
+SHA256 SIS: 77702bf3aec83941bec1d412105ae5f20cb0e73e3fc9157ca45f3eecc30b11f9
