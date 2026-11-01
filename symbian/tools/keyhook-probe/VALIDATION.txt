@@ -1,0 +1,9 @@
+KeyHookProbe 0.1.0
+Capture/release phase model tests: PASS
+Original S60 SDK 2.0 ARMI UREL build: PASS
+Separate UID 0F700661 / native ARM EPOC DLL / APP+RSC package: PASS
+APP/RSC match SDK build outputs: PASS
+Native DLL writable data/BSS: 0, exports: 1
+Only CaptureEventHook/ReleaseEventHook imported; RequestEvent not imported
+Device kernel behavior: NOT TESTED
+SHA256 SIS: f78c0dbe759f4465e5efa13050e9a8f7aa9ec5ff14dd5f1bde2fa8be49756306

@@ -1,0 +1,8 @@
+#include <eikon.rh>
+#include <avkon.rh>
+#include <avkon.rsg>
+NAME KHP1
+RESOURCE RSS_SIGNATURE { }
+RESOURCE TBUF { buf="KeyHookProbe"; }
+RESOURCE EIK_APP_INFO { menubar=0; cba=r_probe_keys; }
+RESOURCE CBA r_probe_keys { buttons={ CBA_BUTTON { id=0x7101; txt="Run"; }, CBA_BUTTON { id=EAknSoftkeyExit; txt="Exit"; } }; }
