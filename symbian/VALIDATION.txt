@@ -1,11 +1,12 @@
-Version 0.1.16: scheduled two-pixel ARM span kernel
-ARMI UREL / ARM32 / no-FP and existing division audits: PASS
-ARM pair loop: early Z loads, packed/mixed stores, no stack accesses/calls PASS
-Unicorn: 5000 actual ARM pair + 5000 native wrapper cases, masks/alignment/tails/guards/ABI PASS
-Portable: 10000 span cases, masks/alignment/tails/depth truncation/guards PASS
+Version 0.1.17: repeat suppression and interval FPS counting
+ARMI UREL, ARM32, no-FP and existing divide/span audits: PASS
+Repeat policy save/suppress/restore and re-snapshot tests: PASS
+10000 unchanged active-policy updates without WS rate calls: PASS
+FPS counter 31.25/30/25 FPS and timing resets: PASS
 80-frame raster checksum: 86c26771 (unchanged)
-Projection, reciprocal, terrain, flight and menu regressions: PASS
+Math/terrain/flight/menu/reciprocal regressions: PASS
 SIS APP/RSC/AIF structure: PASS
-Unicorn does not model ARM920T cache/stalls/timing
-On-device 0.1.16 FPS: not measured; compare with 0.1.15
-SHA256 SIS: ea28c02c58d9c6f0e781762f86cb128c9dd66f8bb99147ebb99a5d14c45f9749
+WSERV repeat behavior, hardware keyboard combinations and focus restore need device verification
+New FPS values are not directly comparable to the old biased EMA
+On-device 0.1.17 speedup: not measured
+SHA256 SIS: 200f9468e20c241efeaaee5625ee673fa03b535d6ffe255b33a9a4cb85e5eb63

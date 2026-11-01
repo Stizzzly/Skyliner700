@@ -32,6 +32,10 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Projection test build failed'}
     & ./tests/projection-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Projection checks failed'}
+    & $Compiler -std=c++98 -O2 -Isrc tests/runtime_tests.cpp -static -o tests/runtime-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Runtime test build failed'}
+    & ./tests/runtime-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Runtime policy checks failed'}
     & $Compiler @common src/menu.cpp src/preview_win32.cpp -mwindows -lgdi32 -luser32 -o Skyliner700-preview.exe
     if($LASTEXITCODE -ne 0){throw "Preview build failed"}
     & $Compiler -std=c++98 -O2 -Isrc src/menu.cpp tests/menu_tests.cpp -static -o tests/menu-tests.exe

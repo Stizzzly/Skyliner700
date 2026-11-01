@@ -12,6 +12,7 @@
 #include <e32keys.h>
 #include "soft3d.h"
 #include "menu.h"
+#include "runtime.h"
 
 const TUid KSkylinerUid={0x0F700660};
 class CFlightView:public CCoeControl,public MDirectScreenAccess {
@@ -27,7 +28,7 @@ public:
         Mem::FillZ(iPixels,SKY_W*SKY_H*sizeof(Pixel));
         iRenderer=new(ELeave)Soft3D;
         FlightModel_Reset(&iFlight);
-        iLast.UniversalTime();
+        iLast.UniversalTime();iFpsCounter.Reset();
         BuildMenu();
         ActivateL();
         // DSA is the only presentation backend in this build.
@@ -37,7 +38,10 @@ public:
         // Physics retains its independent 20ms fixed step.
         iTimer->Start(10000,10000,TCallBack(Tick,this));
     }
-    ~CFlightView(){delete iTimer;delete iDsa;delete iRenderer;delete iBitmap;delete iMenuBitmap;delete[] iPixels;}
+    ~CFlightView(){iRepeatGuard.Restore(iEikonEnv->WsSession());delete iTimer;delete iDsa;delete iRenderer;delete iBitmap;delete iMenuBitmap;delete[] iPixels;}
+    void UpdateRepeatPolicy(){
+        iRepeatGuard.Update(!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused(),iEikonEnv->WsSession());
+    }
     void StartDsaL(){
         if(!iDsa)iDsa=CDirectScreenAccess::NewL(iEikonEnv->WsSession(),*iEikonEnv->ScreenDevice(),Window(),*this);
         iDsa->StartL(); // Refreshes both origin and clipping region.
@@ -53,7 +57,7 @@ public:
         TRAPD(error,StartDsaL());
         iDsaReady=(error==KErrNone);iDsaSuspended=EFalse;
         if(error!=KErrNone){iEikonEnv->HandleError(error);return;}
-        iLast.UniversalTime();BuildMenu();Present();
+        iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void Present(){
         if(iDsaSuspended)return;
@@ -71,24 +75,26 @@ public:
     void ApplyMenu(MenuState::Action action){
         if(action==MenuState::Exit){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return;}
         if(action==MenuState::Start){ResetFlight();return;}
-        iPaused=iMenu.Visible();iKeys=0;iAccum=0;iLast.UniversalTime();BuildMenu();Present();
+        iPaused=iMenu.Visible();iKeys=0;iAccum=0;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void ToggleMenu(){
         if(iDsaSuspended)return;
         if(!iDsaReady){TRAPD(error,StartDsaL());if(error!=KErrNone){iEikonEnv->HandleError(error);return;}}
         if(iMenu.Visible()){ApplyMenu(iMenu.Select());return;}
-        iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;BuildMenu();Present();
+        iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
-    void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();}
+    void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
     static TInt Tick(TAny* p){return static_cast<CFlightView*>(p)->Frame();}
     TInt Frame(){
+        // DSA AbortNow defers repeat restoration here: no WS calls in abort.
+        UpdateRepeatPolicy();
         if(iDsaSuspended||!iDsaReady)return 1;
         TTime now;now.UniversalTime();
         TInt elapsed=now.MicroSecondsFrom(iLast).Int64().GetTInt();iLast=now;
         // Keep the last frame behind the menu; do not spend a second rendering
         // while the player is trying to resume or exit.
         if(iPaused)return 1;
-        if(elapsed>0)iFps=(iFps*3+1000000/elapsed)/4;
+        iFps=iFpsCounter.Add(elapsed);
         if(elapsed<0)elapsed=0;if(elapsed>250000)elapsed=250000;
         if(!iPaused){
             iAccum+=elapsed;
@@ -113,8 +119,11 @@ public:
         return 1;
     }
     TKeyResponse OfferKeyEventL(const TKeyEvent& key,TEventCode type){
+        // No physics or rendering for typematic repeats; queued repeats may
+        // still arrive just after a rate change or foreground transition.
+        if(type==EEventKey&&key.iRepeats>0)return EKeyWasConsumed;
         if((type==EEventKeyDown||type==EEventKey)&&
-           (key.iScanCode==EStdKeyDevice1||key.iCode==EKeyEscape||key.iCode=='#')){
+           (key.iScanCode==EStdKeyDevice1||key.iScanCode==EStdKeyHash||key.iCode==EKeyEscape||key.iCode=='#')){
             iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return EKeyWasConsumed;
         }
         if(type==EEventKey&&iMenu.Visible()){
@@ -137,7 +146,7 @@ public:
         if(mask){if(type==EEventKeyDown)iKeys|=mask;else if(type==EEventKeyUp)iKeys&=~mask;return EKeyWasConsumed;}
         return EKeyWasNotConsumed;
     }
-    void FocusChanged(TDrawNow){if(!IsFocused()){iKeys=0;iPaused=ETrue;iAccum=0;iMenu.Pause();}}
+    void FocusChanged(TDrawNow){if(!IsFocused()){iKeys=0;iPaused=ETrue;iAccum=0;iFpsCounter.Reset();iMenu.Pause();}if(!iDsaSuspended)UpdateRepeatPolicy();}
     void Draw(const TRect&) const {
         // Window Server redraw events do not present game frames.
         // DSA Restart/Present owns all scene and menu drawing.
@@ -161,12 +170,13 @@ public:
 private:
     CFbsBitmap* iBitmap;CFbsBitmap* iMenuBitmap;MenuState iMenu;CPeriodic* iTimer;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
+    KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };
 class CFlightUi:public CAknAppUi {
 public:
     CFlightUi():iView(0){}
-    void ConstructL(){BaseConstructL();iView=new(ELeave)CFlightView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
+    void ConstructL(){BaseConstructL();SetKeyBlockMode(ENoKeyBlock);iView=new(ELeave)CFlightView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
     ~CFlightUi(){if(iView){RemoveFromStack(iView);delete iView;}}
     void HandleCommandL(TInt cmd){if(cmd==EEikCmdExit||cmd==EAknSoftkeyExit){Exit();return;}if(cmd==0x7001&&iView)iView->ToggleMenu();}
 private:CFlightView* iView;

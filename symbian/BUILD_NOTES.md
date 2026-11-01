@@ -253,3 +253,35 @@ Static audit checks load scheduling, packed/mixed stores and no loop stack traff
 All 80 baseline image hashes match 86c26771. No zero-stall/cycle/FPS claim:
 Unicorn verifies instruction semantics, not ARM920T cache/bus performance.
 Compare hardware results against the retained dist/Skyliner700-0.1.15.sis.
+
+## Version 0.1.17: repeat suppression lifecycle and measured FPS
+
+The existing flight input already used KeyDown/KeyUp bits with fixed-step physics.
+There was no direct WS key polling per physics tick. EEventKey repeats, however,
+were still delivered and could re-trigger menu/reset commands. The handler now
+consumes iRepeats>0 immediately. CAknAppUi enables ENoKeyBlock for combinations.
+No timing debounce is added: a software delay could discard legitimate releases.
+
+SetKeyboardRepeatRate changes system-wide durations, not per-key booleans.
+KeyRepeatGuard snapshots the current values and substitutes maximum positive
+32-bit durations (about 35 minutes) only during active focused flight with DSA.
+This defers rather than formally disables repeats; zero-duration behavior is not
+assumed. Pause/focus loss/exit restore the saved values. AbortNow makes no WS
+calls; the periodic callback restores settings after abort has returned. Restart
+also refreshes the policy. While the state is unchanged there are no repeat-rate
+Get/Set calls per frame. A crash cannot execute the normal restoration lifecycle.
+SDK headers used here have a void SetKeyboardRepeatRate signature (EKA1).
+API semantics reference: mirrored Symbian SDK documentation,
+https://docs.huihoo.com/symbian/s60-5th-edition-cpp-developers-library-v2.1/GUID-35228542-8C95-4849-A73F-2B4F082F0C44/sdk/doc_source/reference/reference-cpp/Window_Server/RWsSessionClass.html
+
+FrameRateCounter replaces the truncating per-frame EMA with rounded frame
+intervals / elapsed time over approximately one second. Resets omit paused time.
+The division runs once per measurement window, not each frame. Numerical FPS
+comparisons with the earlier biased counter cannot establish a speedup.
+Tests exercise the real repeat policy through a fake session: custom setting
+preservation, resume/re-snapshot, restoration idempotence, and 10000 unchanged
+frames without WS rate calls. Counter tests cover 31.25, 30 and 25 FPS plus resets.
+Native build/audits and all rendering/flight regressions pass. No on-device input
+speedup or mechanical joystick-bounce diagnosis is claimed. CActive callbacks
+are cooperative inside this application; they do not interrupt an executing
+Frame callback. OS thread preemption and IPC costs are separate from that fact.
