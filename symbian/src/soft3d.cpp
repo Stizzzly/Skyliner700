@@ -181,13 +181,54 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
         edgeInverse[edge]=step?EdgeInverse(edgeDivisor[edge]):0;
     }
 #endif
+#ifdef SKY_UNTILED_RENDER
+    Prepared p;
+#else
+    Prepared& p=prepared[triangleCount];
+#endif
+    p.minx=minx;p.maxx=maxx;p.miny=miny;p.maxy=maxy;
+    p.dzx=dzx;p.dzy=dzy;p.rowz=rowz;p.bias=depthBias;p.color=color;
+    for(int j=0;j<3;++j){p.row[j]=row[j];p.dx[j]=dx[j];p.dy[j]=dy[j];
+#ifndef SKY_REFERENCE_RASTER
+        p.divisor[j]=edgeDivisor[j];p.inverse[j]=edgeInverse[j];
+#endif
+    }
+#ifdef SKY_UNTILED_RENDER
+    DrawPrepared(p);
+#else
+    if(minx<=maxx&&miny<=maxy){
+        for(int tile=0;tile<4;++tile){int x=(tile&1)*TileW,y=(tile>>1)*TileH;
+            if(minx<x+TileW&&maxx>=x&&miny<y+TileH&&maxy>=y)
+                bins[tile][binCount[tile]++]=(unsigned short)triangleCount;
+        }
+        ++triangleCount;
+    }
+#endif
+}
+void Soft3D::DrawPrepared(const Prepared& p){
+    int minx=p.minx,maxx=p.maxx,miny=p.miny,maxy=p.maxy;
+    if(minx<clipLeft)minx=clipLeft;
+    if(maxx>=clipRight)maxx=clipRight-1;
+    if(miny<clipTop)miny=clipTop;
+    if(maxy>=clipBottom)maxy=clipBottom-1;
+    if(minx>maxx||miny>maxy)return;
+    int row[3],dx[3],dy[3];
+    for(int j=0;j<3;++j){dx[j]=p.dx[j];dy[j]=p.dy[j];
+        row[j]=p.row[j]+dx[j]*(minx-p.minx)+dy[j]*(miny-p.miny);}
+    int dzx=p.dzx,dzy=p.dzy;
+    // Keep the original plane's integer rounding anchor across tile boundaries.
+    int rowz=p.rowz+dzx*(minx-p.minx)+dzy*(miny-p.miny);
+    const int depthBias=p.bias;const Pixel color=p.color;
+#ifndef SKY_REFERENCE_RASTER
+    const unsigned* edgeDivisor=p.divisor;const UWide* edgeInverse=p.inverse;
+#endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
         // Desktop-only exact coverage oracle for the span implementation.
         int w0=row[0],w1=row[1],w2=row[2],z=rowz;
         for(int x=minx;x<=maxx;++x){
-            if(w0>=0&&w1>=0&&w2>=0){int d=(z>>8)+depthBias;int index=y*SKY_W+x;
-                if(d>depth[index]){depth[index]=(Pixel)d;target[y*pitch+x]=color;}}
+            if(w0>=0&&w1>=0&&w2>=0){int d=(z>>8)+depthBias;int index=(y-clipTop)*zpitch+x-clipLeft;
+                if(d>zbuffer[index]){zbuffer[index]=(Pixel)d;target[(y-clipTop)*pitch+x-clipLeft]=color;}}
             w0+=dx[0];w1+=dx[1];w2+=dx[2];z+=dzx;
         }
 #else
@@ -198,16 +239,44 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             else if(step<0){if(w<0){last=-1;break;}int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);if(bound<last)last=bound;}
             else if(step==0&&w<0){last=-1;break;}
         }
-        if(first<=last)DrawSpan(target+y*pitch+minx+first,depth+y*SKY_W+minx+first,last-first+1,rowz+dzx*first,dzx,depthBias,color);
+        if(first<=last)DrawSpan(target+(y-clipTop)*pitch+minx-clipLeft+first,zbuffer+(y-clipTop)*zpitch+minx-clipLeft+first,last-first+1,rowz+dzx*first,dzx,depthBias,color);
 #endif
         for(int j=0;j<3;++j)row[j]+=dy[j];
         rowz+=dzy;
     }
 }
+void Soft3D::FinishTiles(Pixel* pixels,int stride){
+#ifndef SKY_UNTILED_RENDER
+    Pixel* color=(Pixel*)(((size_t)tileStorage+31)&~(size_t)31);
+    zbuffer=color+TilePixels;target=color;pitch=zpitch=TileW;
+    for(int tile=0;tile<4;++tile){
+        clipLeft=(tile&1)*TileW;clipTop=(tile>>1)*TileH;
+        clipRight=clipLeft+TileW;clipBottom=clipTop+TileH;
+        memset(zbuffer,0,TilePixels*sizeof(Pixel));
+        for(int i=0;i<TilePixels;++i)color[i]=RGB(90,155,205);
+        for(int n=0;n<binCount[tile];++n)DrawPrepared(prepared[bins[tile][n]]);
+        for(int y=0;y<TileH;++y)
+            memcpy(pixels+(clipTop+y)*stride+clipLeft,color+y*TileW,TileW*sizeof(Pixel));
+    }
+#else
+    (void)pixels;(void)stride;
+#endif
+}
+
 void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
-    target=pixels;pitch=stride;depthBias=0;
+    depthBias=0;
+#ifdef SKY_UNTILED_RENDER
+    target=pixels;pitch=stride;zbuffer=depth;zpitch=SKY_W;
+    clipLeft=clipTop=0;clipRight=SKY_W;clipBottom=SKY_H;
     memset(depth,0,sizeof(depth));
     for(int y=0;y<SKY_H;++y)for(int x=0;x<SKY_W;++x)target[y*pitch+x]=RGB(90,155,205);
+#else
+    // Conservatively allow ten fan triangles per primitive (the clip scratch
+    // arrays hold twelve vertices), including coincident/rounded clip vertices.
+    typedef char QueueCapacity[(128+2+30+PLANE_COUNT/3)*10<=MaxTriangles?1:-1];
+    (void)sizeof(QueueCapacity);
+    triangleCount=0;for(int tile=0;tile<4;++tile)binCount[tile]=0;
+#endif
     Fix sy=(Fix)FxSin(s.yaw),cy=(Fix)FxCos(s.yaw);
     eye=V(s.x-sy*17,s.y+6,s.z+cy*17);
     // Chase offset is constant (29 horizontal, -5 vertical). Normalize offline.
@@ -259,4 +328,5 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
         }
         Triangle(v[0],v[1],v[2],i<48?RGB(205,211,218):RGB(211,66,42));
     }
+    FinishTiles(pixels,stride);
 }

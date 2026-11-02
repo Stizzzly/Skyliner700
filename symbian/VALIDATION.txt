@@ -1,8 +1,13 @@
-Version 0.1.24: accept observed Nokia 6600 LAND=1 layout
-Device report from 0.1.23: all HAL queries e0; offset32/pitch352/bpp16/RGB1/LAND1/176x208/FBS7/ORI0
-Root cause identified: application rejected LAND=1 independently of FBS orientation
-Native SDK build, ARM32/no-FP/owned-pump/no-BitBlt audit: PASS
-1200 framebuffer clip/pitch/alignment/guard cases: PASS
-SIS structure and APP/RSC/AIF identity: PASS
-On-device 0.1.24 raw output/restart/FPS: pending
-SHA256 SIS: 25080ba298c08d2d9d7cb02d2b1a2ac0cadb6d87447291ba9fcebd83e6cc87bc
+Version 0.1.25: binned 44x52 tiles with local color/Z
+Active tile color+depth: 9152 bytes, 32-byte aligned; full-frame Z removed
+Native SDK / ARM32 / no-FP / existing no-divide audits: PASS
+Native DrawPrepared: no division/modulo helpers: PASS
+80 poses tiled/scalar/coverage/untiled/original 0.1.7: 86c26771 identical
+240 randomized 96-triangle batches and Z ties/guards tiled vs untiled: f9e2f17b identical
+1200 direct framebuffer tests and full preview regressions: PASS
+Native ARM Unicorn pair kernel + wrapper 10000 cases: PASS
+SIS APP/RSC/AIF identity: PASS
+On-device tile render correctness/DSA/FPS: pending
+0.1.24 baseline reported 32-34 FPS; tile speedup not measured
+Tradeoff: prepared-triangle/bin storage and color resolve copy
+SHA256 SIS: a0ef1cadd9a27de2ed14e8c61565fbaf24c62f1a1e3746f8e1004a480928ebc0

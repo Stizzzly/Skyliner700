@@ -5,6 +5,15 @@ try {
     $command=Get-Command $Compiler -ErrorAction Stop
     $env:PATH=(Split-Path $command.Source)+";"+$env:PATH
     $common=@("-std=c++98","-O2","-Wall","-Wextra","-Wno-missing-field-initializers","-Wno-class-memaccess","-Isrc","-Iupstream","src/soft3d.cpp","src/physics.cpp","src/terrain.cpp","src/fixed.cpp","-static")
+    & $Compiler @common tests/tile_tests.cpp -o tests/tile-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Tile test build failed'}
+    $tiles=(& ./tests/tile-tests.exe | Out-String)
+    if($LASTEXITCODE -ne 0){throw 'Tile checks failed'}
+    & $Compiler @common -DSKY_UNTILED_RENDER tests/tile_tests.cpp -o tests/untiled-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Untiled test build failed'}
+    $untiled=(& ./tests/untiled-tests.exe | Out-String)
+    if($LASTEXITCODE -ne 0 -or $tiles -ne $untiled){throw 'Tiled triangle/depth output differs from untiled'}
+    Write-Output $tiles
     & $Compiler @common tests/framebuffer_tests.cpp -o tests/framebuffer-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Framebuffer test build failed'}
     & ./tests/framebuffer-tests.exe
@@ -13,7 +22,7 @@ try {
     if($LASTEXITCODE -ne 0){throw "Smoke build failed"}
     Push-Location tests
     try { $normal=(& ./smoke.exe | Out-String); Write-Output $normal; if($LASTEXITCODE -ne 0){throw "Smoke checks failed"} } finally { Pop-Location }
-    foreach($variant in @('SKY_SCALAR_SPANS','SKY_REFERENCE_RASTER')){
+    foreach($variant in @('SKY_SCALAR_SPANS','SKY_REFERENCE_RASTER','SKY_UNTILED_RENDER')){
         & $Compiler @common "-D$variant" tests/smoke.cpp -o tests/smoke-check.exe
         if($LASTEXITCODE -ne 0){throw "Raster comparison build failed"}
         Push-Location tests
