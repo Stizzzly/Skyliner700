@@ -1,6 +1,8 @@
-Version 0.1.23: framebuffer HAL plus EKA1 UserSvr::ScreenInfo diagnostics
-Native SDK build, ARM32/no-FP/owned-pump audit and SIS structure: PASS
-All BitBlt imports absent; flight bitmap remains removed
-Diagnostic screen and ScreenInfo values on actual Nokia: pending
-Raw mapping fix not yet established; FPS not measured
-SHA256 SIS: eb763eb608853a969672ebcbe2089339619080e0b20f008037f3401d867b711b
+Version 0.1.24: accept observed Nokia 6600 LAND=1 layout
+Device report from 0.1.23: all HAL queries e0; offset32/pitch352/bpp16/RGB1/LAND1/176x208/FBS7/ORI0
+Root cause identified: application rejected LAND=1 independently of FBS orientation
+Native SDK build, ARM32/no-FP/owned-pump/no-BitBlt audit: PASS
+1200 framebuffer clip/pitch/alignment/guard cases: PASS
+SIS structure and APP/RSC/AIF identity: PASS
+On-device 0.1.24 raw output/restart/FPS: pending
+SHA256 SIS: 25080ba298c08d2d9d7cb02d2b1a2ac0cadb6d87447291ba9fcebd83e6cc87bc

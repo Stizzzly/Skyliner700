@@ -84,9 +84,12 @@ public:
         const TInt mode=iDisplayValues[0],address=iDisplayValues[1],offset=iDisplayValues[2];
         const TInt pitch=iDisplayValues[3],bpp=iDisplayValues[4],rgb=iDisplayValues[5];
         const TInt landscape=iDisplayValues[6],width=iDisplayValues[7],height=iDisplayValues[8];
-        // No guessed address, palette prefix, pitch or rotation on unsupported HW.
+        // LAND is a HAL pixel-order flag, not the FBS graphics orientation.
+        // Nokia 6600 reports LAND=1 with 176x208, RGB565, pitch=352, FBS ORI=0.
+        // Use the actual dimensions/pitch and FBS orientation for address mapping.
+        // Keep the raw flag in diagnostics, but do not reject this measured layout.
         if(!address||offset<0||offset>65536||pitch<width*2||pitch>8192||
-           (pitch&1)||bpp!=16||!rgb||landscape||width!=SKY_DISPLAY_W||height!=SKY_DISPLAY_H||
+           (pitch&1)||bpp!=16||!rgb||width!=SKY_DISPLAY_W||height!=SKY_DISPLAY_H||
            iDsa->ScreenDevice()->DisplayMode()!=EColor64K||
            iDsa->ScreenDevice()->Orientation()!=CFbsBitGc::EGraphicsOrientationNormal)
             User::Leave(KErrNotSupported);
@@ -215,7 +218,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.23"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.24"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
