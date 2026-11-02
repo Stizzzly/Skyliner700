@@ -1,7 +1,6 @@
-Version 0.1.22: collect HAL failures and show DSA diagnostic instead of startup leave
-Native ARM32/no-FP/owned-pump/BitBlt-absence audit: PASS
-Native SDK build and SIS structure: PASS
-Framebuffer compatibility and diagnostic screen on device: pending
-0.1.21 device startup returned function-not-supported; failing query/validation not yet identified
-FPS improvement not measured; use 0.1.20 for known-working flight
-SHA256 SIS: fbd3c14c8e84dec51faecf413fe35e4d6652cca1ca62efec0171b8a5e973b99f
+Version 0.1.23: framebuffer HAL plus EKA1 UserSvr::ScreenInfo diagnostics
+Native SDK build, ARM32/no-FP/owned-pump audit and SIS structure: PASS
+All BitBlt imports absent; flight bitmap remains removed
+Diagnostic screen and ScreenInfo values on actual Nokia: pending
+Raw mapping fix not yet established; FPS not measured
+SHA256 SIS: eb763eb608853a969672ebcbe2089339619080e0b20f008037f3401d867b711b

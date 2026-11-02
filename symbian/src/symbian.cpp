@@ -11,6 +11,7 @@
 #include <w32std.h>
 #include <e32keys.h>
 #include <hal.h>
+#include <e32svr.h>
 #include "soft3d.h"
 #include "menu.h"
 #include "runtime.h"
@@ -62,6 +63,8 @@ public:
         RFile log;if(log.Replace(iEikonEnv->FsSession(),_L("C:\\Skyliner700-display.log"),EFileWrite)==KErrNone){log.Write(text);log.Close();}
     }
     void MapScreenL(){
+        Mem::FillZ(&iLegacyScreen,sizeof(iLegacyScreen));
+        TPckg<TScreenInfoV01> package(iLegacyScreen);UserSvr::ScreenInfo(package);
         const HALData::TAttribute attributes[9]={HALData::EDisplayMode,HALData::EDisplayMemoryAddress,
             HALData::EDisplayOffsetToFirstPixel,HALData::EDisplayOffsetBetweenLines,
             HALData::EDisplayBitsPerPixel,HALData::EDisplayIsPixelOrderRGB,
@@ -74,7 +77,10 @@ public:
                 (TInt)attributes[n],(TUint)iDisplayValues[n],iDisplayErrors[n]);report.Append(line);
             if(firstError==KErrNone&&iDisplayErrors[n]!=KErrNone)firstError=iDisplayErrors[n];
         }
-        DisplayLog(report);User::LeaveIfError(firstError);
+        TBuf8<96> legacy;
+        legacy.Format(_L8("ScreenInfo valid %d base %08x size %dx%d\r\n"),iLegacyScreen.iScreenAddressValid,
+            (TUint)iLegacyScreen.iScreenAddress,iLegacyScreen.iScreenSize.iWidth,iLegacyScreen.iScreenSize.iHeight);
+        report.Append(legacy);DisplayLog(report);User::LeaveIfError(firstError);
         const TInt mode=iDisplayValues[0],address=iDisplayValues[1],offset=iDisplayValues[2];
         const TInt pitch=iDisplayValues[3],bpp=iDisplayValues[4],rgb=iDisplayValues[5];
         const TInt landscape=iDisplayValues[6],width=iDisplayValues[7],height=iDisplayValues[8];
@@ -209,7 +215,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.22"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.23"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
@@ -217,11 +223,13 @@ public:
             TPtrC label(labels[n]);
             if(n==1)text.Format(_L("%S %08x e%d"),&label,(TUint)iDisplayValues[n],iDisplayErrors[n]);
             else text.Format(_L("%S %d e%d"),&label,iDisplayValues[n],iDisplayErrors[n]);
-            gc.DrawText(text,TPoint(2,39+n*13));
+            gc.DrawText(text,TPoint(2,39+n*12));
         }
         text.Format(_L("FBS %d ORI %d"),(TInt)iDsa->ScreenDevice()->DisplayMode(),(TInt)iDsa->ScreenDevice()->Orientation());
-        gc.DrawText(text,TPoint(2,169));
-        TPoint origin=PositionRelativeToScreen();text.Format(_L("ORIGIN %d %d"),origin.iX,origin.iY);gc.DrawText(text,TPoint(2,182));
+        gc.DrawText(text,TPoint(2,150));
+        text.Format(_L("SV %d %08x"),iLegacyScreen.iScreenAddressValid,(TUint)iLegacyScreen.iScreenAddress);gc.DrawText(text,TPoint(2,164));
+        text.Format(_L("SV SIZE %dx%d"),iLegacyScreen.iScreenSize.iWidth,iLegacyScreen.iScreenSize.iHeight);gc.DrawText(text,TPoint(2,178));
+        TPoint origin=PositionRelativeToScreen();text.Format(_L("XY %d %d"),origin.iX,origin.iY);gc.DrawText(text,TPoint(2,190));
         gc.DrawText(_L("# / RIGHT SOFT: EXIT"),TPoint(2,201));gc.DiscardFont();
     }
     void PaintHud(CBitmapContext& gc) const {
@@ -242,7 +250,7 @@ private:
     CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
     Pixel* iScreenBase;TInt iScreenStride;TPoint iScreenOrigin;
-    TInt iMapError,iDisplayValues[9],iDisplayErrors[9];
+    TInt iMapError,iDisplayValues[9],iDisplayErrors[9];TScreenInfoV01 iLegacyScreen;
     KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };
