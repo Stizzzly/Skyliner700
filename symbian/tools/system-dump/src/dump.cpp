@@ -129,9 +129,13 @@ public:
     TBool NextObjectL(TFileName& source,TFileName& name){
         if(iRole==0){
             source=iManifestPath;TParse parse;User::LeaveIfError(parse.Set(source,0,0));name=parse.NameAndExt();
-            User::LeaveIfError(iIndex.Open(iFs,iManifestPath,EFileRead|EFileShareReadersOnly));iIndexOpen=ETrue;iRole=1;return ETrue;
+            // OBEX must be the only owner while sending this same file.
+            // Open the manifest reader only after its PUT completes and the
+            // old CObexFileObject has been deleted by PutNextL.
+            iRole=1;return ETrue;
         }
         if(iRole==1){
+            if(!iIndexOpen){User::LeaveIfError(iIndex.Open(iFs,iManifestPath,EFileRead|EFileShareReadersOnly));iIndexOpen=ETrue;}
             while(ReadLineL()){
                 if(iLine.Length()<2||iLine[0]!='F'||iLine[1]!='\t')continue;
                 TPtrC8 rest=iLine.Mid(2);TInt split=rest.Locate('\t');if(split<1)User::Leave(KErrCorrupt);
@@ -166,7 +170,7 @@ public:
     }
     void Draw(const TRect&)const{
         CWindowGc& gc=SystemGc();gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));gc.Clear(Rect());
-        gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());gc.DrawText(_L("SYSTEM DUMP 0.2.0"),TPoint(3,16));
+        gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());gc.DrawText(_L("SYSTEM DUMP 0.2.1"),TPoint(3,16));
         const TText* states[]={_S("5 START - NO MMC"),_S("Index + CRC32 of Z:"),_S("7 SEND TO COMPUTER"),_S("Direct Bluetooth OBEX"),_S("TRANSFER COMPLETE"),_S("Cancelled - reopen"),_S("Failed - reopen")};
         gc.DrawText(TPtrC(states[iStage]),TPoint(3,38));TBuf<80> line;
         line.Format(_L("Files %d skipped %d"),iFiles,iSkipped);gc.DrawText(line,TPoint(3,60));

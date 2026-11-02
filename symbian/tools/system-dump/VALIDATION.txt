@@ -1,9 +1,8 @@
-SystemDump 0.2.0: direct OBEX from Z, no MMC or whole-ROM spool
-SDK S60 2nd Edition 2.0 / ARMI UREL: PASS
-Native ARM32 / no-FP / no global constructors: PASS
-Native direct CObexClient/CObexFileObject/SDP imports, no SendUI: PASS
-Legacy SIS APP/RSC/UID + SDK payload identity: PASS
-Host restoration: tree/Unicode/empty files/CRC/traversal tests: PASS
-On-device index/C-space/SDP/OBEX multi-file/abort: pending
-Only path/CRC manifest + transfer log on C, no full-file copies
-SHA256: 1eebff20def0569f3b6ba0a9061b26124e723f755fa9dabe18a0b1e8d6178e71
+SystemDump 0.2.1: defer manifest reader until its OBEX object is closed
+SDK ARMI UREL build / ARM32 / no-FP / no global constructors: PASS
+Direct OBEX/SDP imports, no SendUI: PASS
+Legacy SIS APP/RSC/UID + SDK byte identity: PASS
+Host restore/CRC/Unicode/path tests: PASS
+Device report 0.2.0: Phase4 error -14; early manifest-reader conflict found
+On-device correction and transfer: pending; Phase9 separates file open from Phase4 PUT
+SHA256: e2d6d66a735b01db5e06e0092d2412eecab9a340da9050b97f596829273b051b

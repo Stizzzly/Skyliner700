@@ -14,7 +14,7 @@ public:
 // Direct OBEX Object Push: no messaging MTM, attachment copies, or archive.
 class CDirectObex:public CActive,public MSdpAgentNotifier,public MSdpAttributeValueVisitor {
 public:
-    enum {Selecting=1,Discovering,Connecting,Putting,Disconnecting,Done,Failed,ServiceReady};
+    enum {Selecting=1,Discovering,Connecting,Putting,Disconnecting,Done,Failed,ServiceReady,OpeningFile};
     CDirectObex(MTransfer& observer):CActive(EPriorityStandard),iObserver(observer),iAgent(0),iPattern(0),
         iClient(0),iObject(0),iPhase(0),iChannel(0),iWantChannel(EFalse),iNotifierOpen(EFalse){CActiveScheduler::Add(this);}
     ~CDirectObex(){Stop();}
@@ -63,10 +63,10 @@ private:
         if(!iObserver.NextObjectL(iSource,iName)){
             iPhase=Disconnecting;iObserver.TransferState(iPhase,KErrNone);iClient->Disconnect(iStatus);SetActive();return;
         }
-        iPhase=Putting;iObserver.TransferState(iPhase,KErrNone);
+        iPhase=OpeningFile;iObserver.TransferState(iPhase,KErrNone);
         iObject=CObexFileObject::NewL();iObject->InitFromFileL(iSource);
         iObject->SetNameL(iName);iObject->SetTypeL(_L8("application/octet-stream"));
-        iClient->Put(*iObject,iStatus);SetActive();
+        iPhase=Putting;iObserver.TransferState(iPhase,KErrNone);iClient->Put(*iObject,iStatus);SetActive();
     }
     void NextRecordRequestComplete(TInt error,TSdpServRecordHandle handle,TInt count){
         if(error!=KErrNone||!count){Fail(error==KErrNone||error==KErrEof?KErrNotFound:error);return;}
