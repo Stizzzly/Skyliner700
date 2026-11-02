@@ -1,0 +1,8 @@
+#include <eikon.rh>
+#include <avkon.rh>
+#include <avkon.rsg>
+NAME DCL1
+RESOURCE RSS_SIGNATURE { }
+RESOURCE TBUF { buf="DumpCleanup"; }
+RESOURCE EIK_APP_INFO { menubar=0; cba=r_keys; }
+RESOURCE CBA r_keys { buttons={ CBA_BUTTON { id=0x7601; txt="Clean"; }, CBA_BUTTON { id=EAknSoftkeyExit; txt="Exit"; } }; }
