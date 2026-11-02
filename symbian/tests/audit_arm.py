@@ -74,6 +74,8 @@ for symbol in ('EventReady__10RWsSessionP14TRequestStatus', 'GetEvent__10RWsSess
                'RunIfReady__16CActiveSchedulerRii', 'OwnRequestsL__9CFlightUi'):
     assert symbol in ui, 'Missing owned request pump symbol: ' + symbol
 assert 'CPeriodic' not in ui, 'CPeriodic still drives the native application'
+assert 'BitBlt' not in ui, 'Bitmap copy remains in native presentation'
+assert 'Get__3HAL' in ui, 'Missing HAL screen-memory query'
 assert 'After__6RTimer' not in ui, 'Frame timer remains in uncapped benchmark build'
 assert 'RequestCount__C7RThread' in ui, 'Missing nonblocking completion check'
 assert 'OfferKeyEventL__11CFlightView' not in ui, 'Control stack still owns game input'

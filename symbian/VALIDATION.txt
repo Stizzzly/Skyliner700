@@ -1,11 +1,12 @@
-Version 0.1.20: uncapped benchmark, no post-frame timer
-ARMI UREL ARM32 / no-FP / divide/span audits: PASS
-Native owned WS request pump and cancel-before-EventReady: PASS
-Native RThread::RequestCount present; CPeriodic and RTimer::After absent: PASS
-Input/auxiliary/frame order, pending/spurious completion and exit tests: PASS
-Button snapshots/taps/combinations/repeats/aliases/focus reset tests: PASS
-Repeat policy and interval FPS tests: PASS (FPS counter unchanged)
+Version 0.1.21: RGB565 scale directly into HAL screen memory under DSA
+ARMI UREL ARM32 / no-FP / division/span audits: PASS
+Native HAL::Get present and all BitBlt imports absent: PASS
+Flight full-screen CFbsBitmap removed; menu bitmap retained
+1200 direct framebuffer bounds/clips/pitch/alignment/menu cases: PASS
 Full preview regression suite: PASS; raster checksum 86c26771 unchanged
-SIS APP/RSC/AIF byte identity: PASS
-On-device foreground/menu/DSA wake and uncapped FPS: pending
-SHA256 SIS: 43750125583ca40cc6ee18ec5a83093dac3f49e2ed1b1e1c4ccfa8ecbef3af5f
+Owned uncapped input/frame loop and button tests: PASS
+SIS APP/RSC/AIF identity with native build: PASS
+Framebuffer mapping and DSA abort/restart on actual Nokia firmware: pending
+On-device 0.1.21 FPS gain: not measured (0.1.20 reported 27-30 FPS)
+Unsupported HAL/layout is rejected; phone diagnostic: C:\Skyliner700-display.log
+SHA256 SIS: 920828dfba42e4e7e8efb3bf19218aec62ffb4fff0a367a016adb2fa4e78f02a

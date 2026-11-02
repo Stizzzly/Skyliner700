@@ -10,18 +10,18 @@
 #include <bitdev.h>
 #include <w32std.h>
 #include <e32keys.h>
+#include <hal.h>
 #include "soft3d.h"
 #include "menu.h"
 #include "runtime.h"
+#include "framebuffer.h"
 
 const TUid KSkylinerUid={0x0F700660};
 class CFlightView:public CCoeControl,public MDirectScreenAccess {
 public:
-    CFlightView():iBitmap(0),iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
+    CFlightView():iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iScreenBase(0),iScreenStride(0),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
     void ConstructL() {
         CreateWindowL();SetExtentToWholeScreen();
-        iBitmap=new(ELeave)CFbsBitmap;
-        User::LeaveIfError(iBitmap->Create(TSize(SKY_DISPLAY_W,SKY_DISPLAY_H),EColor64K));
         iMenuBitmap=new(ELeave)CFbsBitmap;
         User::LeaveIfError(iMenuBitmap->Create(TSize(SKY_DISPLAY_W,SKY_DISPLAY_H),EColor64K));
         iPixels=new(ELeave)Pixel[SKY_W*SKY_H];
@@ -35,19 +35,20 @@ public:
         StartDsaL();Present();
 
     }
-    ~CFlightView(){iRepeatGuard.Restore(iEikonEnv->WsSession());delete iDsa;delete iRenderer;delete iBitmap;delete iMenuBitmap;delete[] iPixels;}
+    ~CFlightView(){iRepeatGuard.Restore(iEikonEnv->WsSession());delete iDsa;delete iRenderer;delete iMenuBitmap;delete[] iPixels;}
     void UpdateRepeatPolicy(){
         iRepeatGuard.Update(!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused(),iEikonEnv->WsSession());
     }
     void StartDsaL(){
         if(!iDsa)iDsa=CDirectScreenAccess::NewL(iEikonEnv->WsSession(),*iEikonEnv->ScreenDevice(),Window(),*this);
+        iScreenBase=0;iScreenStride=0;iDsaReady=EFalse;
         iDsa->StartL(); // Refreshes both origin and clipping region.
-        iDsaReady=ETrue;
+        MapScreenL();iDsaReady=ETrue;
     }
     void AbortNow(RDirectScreenAccess::TTerminationReasons){
         // No Window Server calls here: the server is waiting for our return.
         // Never cache Gc()/ScreenDevice() across an abort/restart.
-        iDsaReady=EFalse;iDsaSuspended=ETrue;
+        iScreenBase=0;iScreenStride=0;iDsaReady=EFalse;iDsaSuspended=ETrue;
         iButtons.Clear();iKeys=0;iAccum=0;iPaused=ETrue;iMenu.Pause();
     }
     void Restart(RDirectScreenAccess::TTerminationReasons){
@@ -56,12 +57,63 @@ public:
         if(error!=KErrNone){iEikonEnv->HandleError(error);return;}
         iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
+    void DisplayLog(const TDesC8& text){
+        RFile log;if(log.Replace(iEikonEnv->FsSession(),_L("C:\\Skyliner700-display.log"),EFileWrite)==KErrNone){log.Write(text);log.Close();}
+    }
+    TInt DisplayValueL(HALData::TAttribute attribute,TInt mode=0){
+        TInt value=mode;TInt error=HAL::Get(attribute,value);
+        if(error!=KErrNone){TBuf8<80> text;text.Format(_L8("HAL attribute %d error %d\r\n"),(TInt)attribute,error);DisplayLog(text);User::Leave(error);}
+        return value;
+    }
+    void MapScreenL(){
+        const TInt mode=DisplayValueL(HALData::EDisplayMode);
+        const TInt address=DisplayValueL(HALData::EDisplayMemoryAddress);
+        const TInt offset=DisplayValueL(HALData::EDisplayOffsetToFirstPixel,mode);
+        const TInt pitch=DisplayValueL(HALData::EDisplayOffsetBetweenLines,mode);
+        const TInt bpp=DisplayValueL(HALData::EDisplayBitsPerPixel,mode);
+        const TInt rgb=DisplayValueL(HALData::EDisplayIsPixelOrderRGB);
+        const TInt landscape=DisplayValueL(HALData::EDisplayIsPixelOrderLandscape);
+        const TInt width=DisplayValueL(HALData::EDisplayXPixels);
+        const TInt height=DisplayValueL(HALData::EDisplayYPixels);
+        TBuf8<256> info;
+        info.Format(_L8("mode %d base %08x offset %d pitch %d bpp %d rgb %d landscape %d size %dx%d fbs %d orientation %d\r\n"),
+                    mode,(TUint)address,offset,pitch,bpp,rgb,landscape,width,height,
+                    (TInt)iDsa->ScreenDevice()->DisplayMode(),(TInt)iDsa->ScreenDevice()->Orientation());
+        DisplayLog(info);
+        // No guessed address, palette prefix, pitch or rotation on unsupported HW.
+        if(!address||offset<0||offset>65536||pitch<width*2||pitch>8192||
+           (pitch&1)||bpp!=16||!rgb||landscape||width!=SKY_DISPLAY_W||height!=SKY_DISPLAY_H||
+           iDsa->ScreenDevice()->DisplayMode()!=EColor64K||
+           iDsa->ScreenDevice()->Orientation()!=CFbsBitGc::EGraphicsOrientationNormal)
+            User::Leave(KErrNotSupported);
+        const TUint base=(TUint)address,first=base+(TUint)offset;
+        if(first<base||(first&1)||first+(TUint)(pitch*height)<first)User::Leave(KErrArgument);
+        iScreenOrigin=PositionRelativeToScreen();
+        if(iScreenOrigin.iX<0||iScreenOrigin.iY<0||
+           iScreenOrigin.iX+SKY_DISPLAY_W>width||iScreenOrigin.iY+SKY_DISPLAY_H>height)
+            User::Leave(KErrNotSupported);
+        iScreenStride=pitch>>1;iScreenBase=(Pixel*)first;
+    }
     void Present(){
-        if(iDsaSuspended)return;
-        if(iDsaReady){
-            Paint(*iDsa->Gc());
-            iDsa->ScreenDevice()->Update(*iDsa->DrawingRegion());
+        if(iDsaSuspended||!iDsaReady||!iScreenBase)return;
+        const RRegion* region=iDsa->DrawingRegion();
+        if(!region||region->CheckError()||region->IsEmpty())return;
+        const TBool menu=iMenu.Visible();
+        const Pixel* source=iPixels;TInt sourceStride=SKY_W;
+        if(menu){
+            iMenuBitmap->LockHeap(ETrue);source=(const Pixel*)iMenuBitmap->DataAddress();
+            sourceStride=CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)>>1;
         }
+        Pixel* screen=iScreenBase+iScreenOrigin.iY*iScreenStride+iScreenOrigin.iX;
+        const TRect* rectangles=region->RectangleList();
+        for(TInt n=0;n<region->Count();++n){
+            TRect r=rectangles[n];r.Move(-iScreenOrigin.iX,-iScreenOrigin.iY);
+            SkyPresentRect(source,sourceStride,screen,iScreenStride,
+                           r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,!menu);
+        }
+        if(menu)iMenuBitmap->UnlockHeap(ETrue);
+        else PaintHud(*iDsa->Gc());
+        iDsa->ScreenDevice()->Update(*iDsa->DrawingRegion());
     }
     void BuildMenu(){
         if(!iMenuBitmap||!iMenu.Visible())return;
@@ -118,9 +170,6 @@ public:
         TTime renderEnd;renderEnd.UniversalTime();
         iRenderMs=renderEnd.MicroSecondsFrom(renderStart).Int64().GetTInt()/1000;
         TTime presentStart;presentStart.UniversalTime();
-        iBitmap->LockHeap(ETrue);
-        SkyScale2x(iPixels,SKY_W,(Pixel*)iBitmap->DataAddress(),CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)/2);
-        iBitmap->UnlockHeap(ETrue);
         Present();
         TTime presentEnd;presentEnd.UniversalTime();
         iPresentMs=presentEnd.MicroSecondsFrom(presentStart).Int64().GetTInt()/1000;
@@ -154,9 +203,7 @@ public:
         // Window Server redraw events do not present game frames.
         // DSA Restart/Present owns all scene and menu drawing.
     }
-    void Paint(CBitmapContext& gc) const {
-        if(iMenu.Visible()){gc.BitBlt(TPoint(0,0),iMenuBitmap);return;}
-        gc.BitBlt(TPoint(0,0),iBitmap);
+    void PaintHud(CBitmapContext& gc) const {
         gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(2,2,174,31));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());
@@ -171,8 +218,9 @@ public:
     }
 
 private:
-    CFbsBitmap* iBitmap;CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
+    CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
+    Pixel* iScreenBase;TInt iScreenStride;TPoint iScreenOrigin;
     KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };

@@ -5,6 +5,10 @@ try {
     $command=Get-Command $Compiler -ErrorAction Stop
     $env:PATH=(Split-Path $command.Source)+";"+$env:PATH
     $common=@("-std=c++98","-O2","-Wall","-Wextra","-Wno-missing-field-initializers","-Wno-class-memaccess","-Isrc","-Iupstream","src/soft3d.cpp","src/physics.cpp","src/terrain.cpp","src/fixed.cpp","-static")
+    & $Compiler @common tests/framebuffer_tests.cpp -o tests/framebuffer-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Framebuffer test build failed'}
+    & ./tests/framebuffer-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Framebuffer bounds checks failed'}
     & $Compiler @common tests/smoke.cpp -o tests/smoke.exe
     if($LASTEXITCODE -ne 0){throw "Smoke build failed"}
     Push-Location tests
