@@ -8,197 +8,180 @@
 #include <f32file.h>
 #include <badesca.h>
 #include <e32keys.h>
-#include <sendui.h>
-#include <senduimtmuids.h>
-#include "zip_store.h"
+#include "direct_obex.h"
+#include "crc_table.h"
 const TUid KDumpUid={0x0F700663};
-
-class FileOutput {
-    RFile file;unsigned position;TBuf8<4096> buffer;
-public:
-    FileOutput():position(0){}
-    ~FileOutput(){Close();}
-    void CreateL(RFs& fs,const TDesC& name){Close();User::LeaveIfError(file.Create(fs,name,EFileRead|EFileWrite|EFileShareExclusive));position=0;}
-    void Flush(){if(buffer.Length()){User::LeaveIfError(file.Write(buffer));buffer.Zero();}}
-    void Sync(){Flush();User::LeaveIfError(file.Flush());}
-    void Write(const void* data,unsigned length){
-        if(length>0x7fffffffu-position)User::Leave(KErrOverflow);
-        const TUint8* p=(const TUint8*)data;
-        while(length){
-            if(!buffer.Length()&&length>=4096){User::LeaveIfError(file.Write(TPtrC8(p,length)));position+=length;return;}
-            TInt n=Min((TInt)length,buffer.MaxLength()-buffer.Length());buffer.Append(p,n);
-            p+=n;length-=n;position+=n;if(buffer.Length()==buffer.MaxLength())Flush();
-        }
-    }
-    unsigned Position()const{return position;}
-    void Truncate(unsigned size){Flush();User::LeaveIfError(file.SetSize(size));TInt p=size;User::LeaveIfError(file.Seek(ESeekStart,p));position=size;}
-    void Rewind(){Flush();TInt p=0;User::LeaveIfError(file.Seek(ESeekStart,p));}
-    unsigned Read(void* bytes,unsigned size){TPtr8 b((TUint8*)bytes,0,size);User::LeaveIfError(file.Read(b));return b.Length();}
-    void Close(){file.Close();buffer.Zero();position=0;}
-};
-
-// ZIP uses UTF-8 names, including non-ASCII ROM resources; never lossy Copy().
-static void ZipPathL(const TDesC& source,TDes8& out){
-    out.Copy(_L8("Z/"));
-    for(TInt i=3;i<source.Length();++i){
-        TUint c=source[i];if(c=='\\')c='/';
-        if(c>=0xd800&&c<=0xdbff){
-            if(i+1>=source.Length()||source[i+1]<0xdc00||source[i+1]>0xdfff)User::Leave(KErrCorrupt);
-            c=0x10000+((c-0xd800)<<10)+(source[++i]-0xdc00);
-        }else if(c>=0xdc00&&c<=0xdfff)User::Leave(KErrCorrupt);
-        if(c<0x80)out.Append((TUint8)c);
-        else if(c<0x800){out.Append((TUint8)(0xc0|(c>>6)));out.Append((TUint8)(0x80|(c&63)));}
-        else if(c<0x10000){out.Append((TUint8)(0xe0|(c>>12)));out.Append((TUint8)(0x80|((c>>6)&63)));out.Append((TUint8)(0x80|(c&63)));}
-        else {out.Append((TUint8)(0xf0|(c>>18)));out.Append((TUint8)(0x80|((c>>12)&63)));out.Append((TUint8)(0x80|((c>>6)&63)));out.Append((TUint8)(0x80|(c&63)));}
-    }
+static TInt Hex(TUint c){if(c>='0'&&c<='9')return c-'0';if(c>='a'&&c<='f')return c-'a'+10;User::Leave(KErrCorrupt);return 0;}
+static void EncodePath(const TDesC& path,TDes8& out){
+    const TUint8 digits[]="0123456789abcdef";out.Zero();
+    for(TInt i=0;i<path.Length();++i){TUint c=path[i];out.Append(digits[(c>>4)&15]);out.Append(digits[c&15]);out.Append(digits[(c>>12)&15]);out.Append(digits[(c>>8)&15]);}
 }
-
-class CDumpView:public CCoeControl {
-    enum Stage {Ready,Dumping,Complete,Cancelled,Failed};
-    RFs iFs;RFile iInput,iReport;FileOutput iArchive,iCentral;
-    ZipStore<FileOutput> iZip;CIdle* iWorker;CDesCArrayFlat* iDirs;CDir* iListing;
-    TInt iDirectory,iEntry,iFiles,iSkipped,iError,iChunks;Stage iStage;
-    TBool iInputOpen,iReportOpen,iOwnPart,iOwnCentral,iAutoSend,iSending;
-    unsigned iRemaining;
-    TFileName iCurrentDir,iCurrent,iPartPath,iCentralPath,iFinalPath,iReportPath;
-    TBuf8<16384> iChunk;
+static void DecodePathL(const TDesC8& bytes,TDes& path){
+    if((bytes.Length()&3)||bytes.Length()/4>path.MaxLength())User::Leave(KErrCorrupt);path.Zero();
+    for(TInt i=0;i<bytes.Length();i+=4){TUint c=(Hex(bytes[i])<<4)|Hex(bytes[i+1])|(Hex(bytes[i+2])<<12)|(Hex(bytes[i+3])<<8);if(!c)User::Leave(KErrCorrupt);path.Append(TChar(c));}
+    if(path.Length()<3||path.Left(3).CompareF(_L("Z:\\"))||path.Find(_L("\\..\\"))!=KErrNotFound)User::Leave(KErrArgument);
+}
+class CDumpView:public CCoeControl,public MTransfer {
+    enum Stage {Ready,Indexing,Prepared,Transferring,Complete,Cancelled,Failed};
+    RFs iFs;RFile iInput,iManifest,iReport,iIndex;
+    CIdle* iWorker;CDirectObex* iBt;CDesCArrayFlat* iDirs;CDir* iListing;
+    Stage iStage;TInt iDirectory,iEntry,iFiles,iSkipped,iSent,iError,iPhase,iUpdates,iReadPos,iRole;
+    TBool iInputOpen,iManifestOpen,iReportOpen,iIndexOpen;
+    unsigned iRemaining,iFileSize,iCrc;
+    TFileName iCurrentDir,iCurrent,iStem,iManifestPart,iManifestPath,iReportPath,iSendName;
+    TBuf8<16384> iChunk;TBuf8<4096> iReadBuffer;TBuf8<1600> iLine;
 public:
-    CDumpView():iZip(iArchive,iCentral),iWorker(0),iDirs(0),iListing(0),
-        iDirectory(0),iEntry(0),iFiles(0),iSkipped(0),iError(0),iChunks(0),iStage(Ready),
-        iInputOpen(EFalse),iReportOpen(EFalse),iOwnPart(EFalse),iOwnCentral(EFalse),iAutoSend(EFalse),iSending(EFalse),iRemaining(0){}
+    CDumpView():iWorker(0),iBt(0),iDirs(0),iListing(0),iStage(Ready),iDirectory(0),iEntry(0),
+        iFiles(0),iSkipped(0),iSent(0),iError(0),iPhase(0),iUpdates(0),iReadPos(0),iRole(0),
+        iInputOpen(EFalse),iManifestOpen(EFalse),iReportOpen(EFalse),iIndexOpen(EFalse){}
     void ConstructL(){CreateWindowL();SetExtentToWholeScreen();User::LeaveIfError(iFs.Connect());
-        iDirs=new(ELeave)CDesCArrayFlat(32);iWorker=CIdle::NewL(CActive::EPriorityIdle);ActivateL();}
-    ~CDumpView(){if(iWorker)iWorker->Cancel();CleanupJob();delete iWorker;delete iDirs;delete iListing;iFs.Close();}
-    void LogL(const TDesC& path,TInt error){
-        if(!iReportOpen)return;
-        TBuf8<1024> name;ZipPathL(path,name);TBuf8<80> prefix;prefix.Format(_L8("%d "),error);
-        User::LeaveIfError(iReport.Write(prefix));User::LeaveIfError(iReport.Write(name));User::LeaveIfError(iReport.Write(_L8("\r\n")));
+        iDirs=new(ELeave)CDesCArrayFlat(32);iWorker=CIdle::NewL(CActive::EPriorityIdle);iBt=new(ELeave)CDirectObex(*this);ActivateL();}
+    ~CDumpView(){if(iWorker)iWorker->Cancel();delete iBt;CloseFiles();delete iWorker;delete iDirs;delete iListing;iFs.Close();}
+    void CloseFiles(){iInput.Close();iManifest.Close();iReport.Close();iIndex.Close();
+        iInputOpen=iManifestOpen=iReportOpen=iIndexOpen=EFalse;}
+    void RecordL(char kind,const TDesC& path,TInt size,unsigned crc,const TDesC& name){
+        TBuf8<1100> hex;EncodePath(path,hex);TBuf8<1600> row;row.Append(kind);row.Append('\t');
+        TBuf8<80> ascii;ascii.Copy(name);row.Append(ascii);row.Append('\t');row.AppendNum(size);row.Append('\t');
+        row.AppendNumFixedWidth(crc,EHex,8);row.Append('\t');row.Append(hex);row.Append(_L8("\r\n"));
+        User::LeaveIfError(iManifest.Write(row));
     }
-    void SkipL(const TDesC& path,TInt error){++iSkipped;LogL(path,error);}
-    void BeginEntryL(const TDesC& path,unsigned size,TBool directory,const TTime& modified){
-        TBuf8<1024> name;ZipPathL(path,name);TDateTime date=modified.DateTime();
-        unsigned dosDate=((Max(1980,Min(2107,date.Year()))-1980)<<9)|((date.Month()+1)<<5)|(date.Day()+1);
-        unsigned dosTime=(date.Hour()<<11)|(date.Minute()<<5)|(date.Second()>>1);
-        if(!iZip.Begin((const char*)name.Ptr(),name.Length(),size,directory,dosTime,dosDate))User::Leave(KErrOverflow);
-    }
+    void SkipL(const TDesC& path,TInt error){++iSkipped;RecordL('E',path,error,0,_L("-"));}
     void StartL(){
-        if(iStage==Dumping)return;
-        CleanupJob();delete iListing;iListing=0;iDirs->Reset();
-        iFiles=iSkipped=iError=iChunks=iDirectory=iEntry=0;
-        // A new ZIP writer is required for each retry. Placement new is avoided:
-        // failed/cancelled jobs are restarted by closing and reopening the app.
+        if(iStage==Indexing||iStage==Transferring)return;
+        if(iStage==Prepared||iStage==Complete){SendL();return;}
         if(iStage!=Ready)User::Leave(KErrNotReady);
-        TInt error=iFs.MkDirAll(_L("E:\\SystemDump\\"));if(error!=KErrNone&&error!=KErrAlreadyExists)User::Leave(error);
-        TTime now;now.HomeTime();TDateTime d=now.DateTime();TFileName stem;
-        stem.Format(_L("E:\\SystemDump\\N6600_%04d%02d%02d_%02d%02d%02d"),d.Year(),d.Month()+1,d.Day()+1,d.Hour(),d.Minute(),d.Second());
-        iPartPath=stem;iPartPath.Append(_L(".part"));iCentralPath=stem;iCentralPath.Append(_L(".central"));
-        iFinalPath=stem;iFinalPath.Append(_L(".zip"));iReportPath=stem;iReportPath.Append(_L(".log"));
-        // Create rather than Replace: existing dumps are never overwritten.
+        TInt error=iFs.MkDirAll(_L("C:\\SystemDump\\"));if(error!=KErrNone&&error!=KErrAlreadyExists)User::Leave(error);
+        TTime now;now.HomeTime();TDateTime d=now.DateTime();
+        iStem.Format(_L("N6600_%04d%02d%02d_%02d%02d%02d"),d.Year(),d.Month()+1,d.Day()+1,d.Hour(),d.Minute(),d.Second());
+        iManifestPath.Copy(_L("C:\\SystemDump\\"));iManifestPath.Append(iStem);iManifestPath.Append(_L("_manifest.tsv"));
+        iManifestPart=iManifestPath;iManifestPart.Append(_L(".part"));
+        iReportPath.Copy(_L("C:\\SystemDump\\"));iReportPath.Append(iStem);iReportPath.Append(_L("_transfer.log"));
+        User::LeaveIfError(iManifest.Create(iFs,iManifestPart,EFileWrite|EFileShareAny));iManifestOpen=ETrue;
         User::LeaveIfError(iReport.Create(iFs,iReportPath,EFileWrite|EFileShareAny));iReportOpen=ETrue;
-        User::LeaveIfError(iReport.Write(_L8("SystemDump 0.1.0; source Z:\\ only; file-level ROM extraction, not a raw ROM image.\r\n")));
-        iArchive.CreateL(iFs,iPartPath);iOwnPart=ETrue;iCentral.CreateL(iFs,iCentralPath);iOwnCentral=ETrue;
-        iDirs->AppendL(_L("Z:\\"));BeginEntryL(_L("Z:\\"),0,ETrue,now);if(!iZip.End())User::Leave(KErrCorrupt);
-        iStage=Dumping;DrawNow();iWorker->Start(TCallBack(Work,this));
+        User::LeaveIfError(iManifest.Write(_L8("# SystemDump 0.2.0; F name size crc32 path_utf16le_hex; D directory; E read error\r\n")));
+        iDirs->AppendL(_L("Z:\\"));RecordL('D',_L("Z:\\"),0,0,_L("-"));
+        iStage=Indexing;DrawNow();iWorker->Start(TCallBack(Work,this));
     }
-    void Start(){if(iSending)return;if(iStage==Complete){Send();return;}TRAPD(error,StartL());if(error!=KErrNone){iError=error;if(iStage!=Complete){iStage=Failed;CleanupJob();}DrawNow();}}
-    static TInt Work(TAny* p){return static_cast<CDumpView*>(p)->Step();}
+    void Start(){TRAPD(error,StartL());if(error!=KErrNone)Failure(error);}
+    void Failure(TInt error){iError=error;iStage=Failed;DrawNow();}
+    static TInt Work(TAny* self){return static_cast<CDumpView*>(self)->Step();}
     TInt Step(){
-        TRAPD(error,StepL());
-        if(error!=KErrNone){iError=error;iStage=Failed;CleanupJob();DrawNow();return 0;}
-        if(iStage==Dumping){if((++iChunks&31)==0)DrawNow();return 1;}
-        DrawNow();
-        if(iAutoSend){iAutoSend=EFalse;Send();}
-        return 0;
+        TRAPD(error,StepL());if(error!=KErrNone){CloseFiles();Failure(error);return 0;}
+        if(iStage==Indexing){if((++iUpdates&31)==0)DrawNow();return 1;}
+        DrawNow();TRAPD(sendError,SendL());if(sendError!=KErrNone)Failure(sendError);return 0;
+    }
+    void FinishInputL(){
+        iInput.Close();iInputOpen=EFalse;
+        if(iFiles>=999999)User::Leave(KErrOverflow);
+        iSendName=iStem;TBuf<20> suffix;suffix.Format(_L("_%06d.bin"),iFiles+1);iSendName.Append(suffix);
+        RecordL('F',iCurrent,iFileSize,iCrc^0xffffffffu,iSendName);++iFiles;
     }
     void StepL(){
         if(iInputOpen){
             TInt error=iInput.Read(iChunk,Min((TInt)iRemaining,iChunk.MaxLength()));
-            if(error!=KErrNone||(!iChunk.Length()&&iRemaining)){
-                iInput.Close();iInputOpen=EFalse;iZip.Abort();SkipL(iCurrent,error==KErrNone?KErrCorrupt:error);return;
-            }
-            if(!iZip.Data(iChunk.Ptr(),iChunk.Length()))User::Leave(KErrCorrupt);
-            iRemaining-=iChunk.Length();
-            if(!iRemaining){iInput.Close();iInputOpen=EFalse;if(!iZip.End())User::Leave(KErrCorrupt);++iFiles;LogL(iCurrent,KErrNone);}
-            return;
+            if(error!=KErrNone||(!iChunk.Length()&&iRemaining)){iInput.Close();iInputOpen=EFalse;SkipL(iCurrent,error==KErrNone?KErrCorrupt:error);return;}
+            for(TInt n=0;n<iChunk.Length();++n)iCrc=ZipCrcTable[(iCrc^iChunk[n])&255]^(iCrc>>8);
+            iRemaining-=iChunk.Length();if(!iRemaining)FinishInputL();return;
         }
         if(iListing&&iEntry<iListing->Count()){
-            const TEntry& entry=(*iListing)[iEntry++];
-            if(entry.iName==_L(".")||entry.iName==_L(".."))return;
+            const TEntry& entry=(*iListing)[iEntry++];if(entry.iName==_L(".")||entry.iName==_L(".."))return;
             if(iCurrentDir.Length()+entry.iName.Length()+(entry.IsDir()?1:0)>iCurrent.MaxLength()){SkipL(iCurrentDir,KErrOverflow);return;}
             iCurrent=iCurrentDir;iCurrent.Append(entry.iName);
-            if(entry.IsDir()){
-                iCurrent.Append('\\');iDirs->AppendL(iCurrent);
-                BeginEntryL(iCurrent,0,ETrue,entry.iModified);if(!iZip.End())User::Leave(KErrCorrupt);return;
-            }
-            TInt error=iInput.Open(iFs,iCurrent,EFileRead|EFileShareReadersOnly);
-            if(error!=KErrNone){SkipL(iCurrent,error);return;}
-            iInputOpen=ETrue;TInt size=0;error=iInput.Size(size);
+            if(entry.IsDir()){iCurrent.Append('\\');iDirs->AppendL(iCurrent);RecordL('D',iCurrent,0,0,_L("-"));return;}
+            TInt error=iInput.Open(iFs,iCurrent,EFileRead|EFileShareReadersOnly);if(error!=KErrNone){SkipL(iCurrent,error);return;}
+            iInputOpen=ETrue;TInt size;error=iInput.Size(size);
             if(error!=KErrNone||size<0){iInput.Close();iInputOpen=EFalse;SkipL(iCurrent,error==KErrNone?KErrCorrupt:error);return;}
-            iRemaining=size;BeginEntryL(iCurrent,iRemaining,EFalse,entry.iModified);
-            if(!iRemaining){iInput.Close();iInputOpen=EFalse;if(!iZip.End())User::Leave(KErrCorrupt);++iFiles;LogL(iCurrent,KErrNone);}
-            return;
+            iFileSize=iRemaining=size;iCrc=0xffffffffu;if(!size)FinishInputL();return;
         }
         delete iListing;iListing=0;iEntry=0;
         if(iDirectory<iDirs->Count()){
             iCurrentDir=(*iDirs)[iDirectory++];
             if(iCurrentDir.Length()>=iCurrentDir.MaxLength()){SkipL(iCurrentDir,KErrOverflow);return;}
-            TFileName mask(iCurrentDir);mask.Append('*');
-            TInt error=iFs.GetDir(mask,KEntryAttMaskSupported,ESortByName,iListing);
+            TFileName mask(iCurrentDir);mask.Append('*');TInt error=iFs.GetDir(mask,KEntryAttMaskSupported,ESortByName,iListing);
             if(error!=KErrNone){delete iListing;iListing=0;SkipL(iCurrentDir,error);}return;
         }
-        if(!iZip.Finish())User::Leave(KErrCorrupt);
-        iArchive.Sync();iArchive.Close();iCentral.Close();
-        User::LeaveIfError(iFs.Rename(iPartPath,iFinalPath));iOwnPart=EFalse;
-        iFs.Delete(iCentralPath);iOwnCentral=EFalse;
-        TBuf8<100> summary;summary.Format(_L8("END files %d skipped %d zip entries %u\r\n"),iFiles,iSkipped,iZip.Count());
-        User::LeaveIfError(iReport.Write(summary));User::LeaveIfError(iReport.Flush());iReport.Close();iReportOpen=EFalse;
-        iStage=Complete;iAutoSend=ETrue;
+        TBuf8<100> summary;summary.Format(_L8("# END files %d skipped %d\r\n"),iFiles,iSkipped);
+        User::LeaveIfError(iManifest.Write(summary));User::LeaveIfError(iManifest.Flush());iManifest.Close();iManifestOpen=EFalse;
+        User::LeaveIfError(iFs.Rename(iManifestPart,iManifestPath));iStage=Prepared;
     }
-    void CleanupJob(){
-        iInput.Close();iInputOpen=EFalse;iArchive.Close();iCentral.Close();iReport.Close();iReportOpen=EFalse;
-        if(iOwnPart){iFs.Delete(iPartPath);iOwnPart=EFalse;}
-        if(iOwnCentral){iFs.Delete(iCentralPath);iOwnCentral=EFalse;}
-    }
-    void Cancel(){if(iStage==Dumping){iWorker->Cancel();iStage=Cancelled;CleanupJob();DrawNow();}}
     void SendL(){
-        if(iStage!=Complete)User::Leave(KErrNotReady);
-        CDesCArrayFlat* attachments=new(ELeave)CDesCArrayFlat(2);CleanupStack::PushL(attachments);
-        attachments->AppendL(iFinalPath);attachments->AppendL(iReportPath);
-        CSendAppUi* send=CSendAppUi::NewLC(0x7500);
-        send->CreateAndSendMessageL(KSenduiMtmBtUid,0,attachments);
-        CleanupStack::PopAndDestroy(send);CleanupStack::PopAndDestroy(attachments);
+        if(iStage!=Prepared&&iStage!=Complete&&iStage!=Failed)User::Leave(KErrNotReady);
+        TEntry manifest;User::LeaveIfError(iFs.Entry(iManifestPath,manifest));
+        iBt->Stop(); // Release an old OBEX file handle before appending the report.
+        if(!iReportOpen){
+            User::LeaveIfError(iReport.Open(iFs,iReportPath,EFileWrite|EFileShareAny));iReportOpen=ETrue;
+            TInt end=0;User::LeaveIfError(iReport.Seek(ESeekEnd,end));
+        }
+        iSent=0;iRole=0;iError=0;iIndex.Close();iIndexOpen=EFalse;iReadBuffer.Zero();iReadPos=0;
+        iStage=Transferring;iBt->StartL();
     }
-    TBool Sending()const{return iSending;}
-    void Send(){if(iSending)return;iSending=ETrue;TRAPD(error,SendL());iSending=EFalse;if(error!=KErrNone&&error!=KErrCancel)iError=error;DrawNow();}
+    void Send(){if(iStage==Indexing||iStage==Transferring)return;if(iStage==Ready){Start();return;}TRAPD(error,SendL());if(error!=KErrNone)Failure(error);}
+    TBool ReadLineL(){
+        iLine.Zero();
+        for(;;){
+            if(iReadPos==iReadBuffer.Length()){
+                User::LeaveIfError(iIndex.Read(iReadBuffer));iReadPos=0;if(!iReadBuffer.Length())return iLine.Length()!=0;
+            }
+            TUint8 c=iReadBuffer[iReadPos++];if(c=='\n')return ETrue;if(c=='\r')continue;
+            if(iLine.Length()==iLine.MaxLength())User::Leave(KErrOverflow);iLine.Append(c);
+        }
+    }
+    TBool NextObjectL(TFileName& source,TFileName& name){
+        if(iRole==0){
+            source=iManifestPath;TParse parse;User::LeaveIfError(parse.Set(source,0,0));name=parse.NameAndExt();
+            User::LeaveIfError(iIndex.Open(iFs,iManifestPath,EFileRead|EFileShareReadersOnly));iIndexOpen=ETrue;iRole=1;return ETrue;
+        }
+        if(iRole==1){
+            while(ReadLineL()){
+                if(iLine.Length()<2||iLine[0]!='F'||iLine[1]!='\t')continue;
+                TPtrC8 rest=iLine.Mid(2);TInt split=rest.Locate('\t');if(split<1)User::Leave(KErrCorrupt);
+                name.Copy(rest.Left(split));rest.Set(rest.Mid(split+1));
+                for(TInt n=0;n<2;++n){split=rest.Locate('\t');if(split<0)User::Leave(KErrCorrupt);rest.Set(rest.Mid(split+1));}
+                DecodePathL(rest,source);iCurrent=source;return ETrue;
+            }
+            iIndex.Close();iIndexOpen=EFalse;iRole=2;
+        }
+        if(iRole==2){
+            TBuf8<80> summary;summary.Format(_L8("sent %d indexed %d skipped %d\r\n"),iSent,iFiles,iSkipped);
+            User::LeaveIfError(iReport.Write(summary));User::LeaveIfError(iReport.Flush());iReport.Close();iReportOpen=EFalse;
+            source=iReportPath;TParse parse;User::LeaveIfError(parse.Set(source,0,0));name=parse.NameAndExt();iRole=3;return ETrue;
+        }
+        return EFalse;
+    }
+    void ObjectSentL(const TDesC& name){
+        if(name.Right(Min(4,name.Length()))==_L(".bin"))++iSent;
+        if(iReportOpen){TBuf8<128> line;line.Copy(name);line.Append(_L8(" OK\r\n"));User::LeaveIfError(iReport.Write(line));}
+        DrawNow();
+    }
+    void TransferState(TInt phase,TInt error){
+        iPhase=phase;if(error!=KErrNone){iError=error;iStage=Failed;}
+        else if(phase==CDirectObex::Done)iStage=Complete;DrawNow();
+    }
+    void Cancel(){if(iWorker)iWorker->Cancel();if(iBt)iBt->Stop();CloseFiles();if(iStage!=Complete)iStage=Cancelled;DrawNow();}
     TKeyResponse OfferKeyEventL(const TKeyEvent& key,TEventCode type){
         if(type!=EEventKey||key.iRepeats>0)return EKeyWasConsumed;
-        if(key.iScanCode==EStdKeyDevice1||key.iCode=='#'){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return EKeyWasConsumed;}
-        if(key.iCode=='0')Cancel();
-        else if(key.iCode=='7')Send();
-        else if(key.iCode=='5'||key.iScanCode==EStdKeyDevice0||key.iScanCode==EStdKeyDevice3)Start();
-        return EKeyWasConsumed;
+        if(key.iCode=='#'||key.iScanCode==EStdKeyDevice1){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return EKeyWasConsumed;}
+        if(key.iCode=='0')Cancel();else if(key.iCode=='7')Send();
+        else if(key.iCode=='5'||key.iScanCode==EStdKeyDevice3||key.iScanCode==EStdKeyDevice0)Start();return EKeyWasConsumed;
     }
     void Draw(const TRect&)const{
         CWindowGc& gc=SystemGc();gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));gc.Clear(Rect());
-        gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("SYSTEM DUMP 0.1.0"),TPoint(3,16));
-        const TText* stages[]={_S("5 START: Z drive only"),_S("Reading system files"),_S("ZIP READY - 7 SEND"),_S("Cancelled - reopen app"),_S("Failed - reopen app")};
-        gc.DrawText(TPtrC(stages[iStage]),TPoint(3,37));
-        TBuf<80> line;line.Format(_L("Files %d  skipped %d"),iFiles,iSkipped);gc.DrawText(line,TPoint(3,57));
-        line.Format(_L("ZIP entries %u"),iZip.Count());gc.DrawText(line,TPoint(3,75));
-        line.Format(_L("Error %d"),iError);gc.DrawText(line,TPoint(3,93));
-        gc.DrawText(iCurrent.Right(Min(25,iCurrent.Length())),TPoint(3,113));
-        gc.DrawText(_L("E:\\SystemDump\\"),TPoint(3,135));
-        gc.DrawText(_L("5 START / SEND ZIP"),TPoint(3,160));gc.DrawText(_L("0 CANCEL   7 RESEND"),TPoint(3,180));
-        gc.DrawText(_L("# / RIGHT SOFT: EXIT"),TPoint(3,200));gc.DiscardFont();
+        gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());gc.DrawText(_L("SYSTEM DUMP 0.2.0"),TPoint(3,16));
+        const TText* states[]={_S("5 START - NO MMC"),_S("Index + CRC32 of Z:"),_S("7 SEND TO COMPUTER"),_S("Direct Bluetooth OBEX"),_S("TRANSFER COMPLETE"),_S("Cancelled - reopen"),_S("Failed - reopen")};
+        gc.DrawText(TPtrC(states[iStage]),TPoint(3,38));TBuf<80> line;
+        line.Format(_L("Files %d skipped %d"),iFiles,iSkipped);gc.DrawText(line,TPoint(3,60));
+        line.Format(_L("Sent %d / %d"),iSent,iFiles);gc.DrawText(line,TPoint(3,80));
+        line.Format(_L("Phase %d error %d"),iPhase,iError);gc.DrawText(line,TPoint(3,100));
+        gc.DrawText(iCurrent.Right(Min(25,iCurrent.Length())),TPoint(3,122));
+        gc.DrawText(_L("Only small index on C:"),TPoint(3,146));gc.DrawText(_L("5 START   7 SEND"),TPoint(3,168));
+        gc.DrawText(_L("0 CANCEL   # EXIT"),TPoint(3,193));gc.DiscardFont();
     }
 };
 class CDumpUi:public CAknAppUi {
     CDumpView* iView;
-public:
-    CDumpUi():iView(0){}void ConstructL(){BaseConstructL();iView=new(ELeave)CDumpView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
+public:CDumpUi():iView(0){}void ConstructL(){BaseConstructL();iView=new(ELeave)CDumpView;iView->ConstructL();AddToStackL(iView);iView->SetFocus(ETrue);}
     ~CDumpUi(){if(iView){RemoveFromStack(iView);delete iView;}}
-    void HandleCommandL(TInt command){if(command==0x7401){iView->Start();return;}if(command==EEikCmdExit||command==EAknSoftkeyExit){if(iView->Sending())return;iView->Cancel();Exit();}}
+    void HandleCommandL(TInt c){if(c==0x7401){iView->Start();return;}if(c==EEikCmdExit||c==EAknSoftkeyExit){iView->Cancel();Exit();}}
 };
 class CDumpDocument:public CAknDocument {public:CDumpDocument(CEikApplication& a):CAknDocument(a){}private:CEikAppUi* CreateAppUiL(){return new(ELeave)CDumpUi;}};
 class CDumpApplication:public CAknApplication {private:TUid AppDllUid()const{return KDumpUid;}CApaDocument* CreateDocumentL(){return new(ELeave)CDumpDocument(*this);}};

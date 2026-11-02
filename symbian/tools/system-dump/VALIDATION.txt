@@ -1,9 +1,9 @@
-SystemDump 0.1.0, UID 0x0F700663
+SystemDump 0.2.0: direct OBEX from Z, no MMC or whole-ROM spool
 SDK S60 2nd Edition 2.0 / ARMI UREL: PASS
-APP no writable data/BSS, one export: PASS
 Native ARM32 / no-FP / no global constructors: PASS
-SendUI + Bluetooth MTM UID present: PASS
-Streaming ZIP fixtures and independent CRC/byte/name/rollback checks: PASS
-Legacy SIS APP/RSC/UID/destinations + SDK payload identity: PASS
-Device ROM traversal, MMC/disk-full/cancel and Bluetooth large-file transfer: pending
-SHA256: 8fd69fd2c70ec29ce891090c96d4170a9342e78ef3a911cabe6f9cbf5708e156
+Native direct CObexClient/CObexFileObject/SDP imports, no SendUI: PASS
+Legacy SIS APP/RSC/UID + SDK payload identity: PASS
+Host restoration: tree/Unicode/empty files/CRC/traversal tests: PASS
+On-device index/C-space/SDP/OBEX multi-file/abort: pending
+Only path/CRC manifest + transfer log on C, no full-file copies
+SHA256: 1eebff20def0569f3b6ba0a9061b26124e723f755fa9dabe18a0b1e8d6178e71
