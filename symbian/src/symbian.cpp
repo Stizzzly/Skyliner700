@@ -19,7 +19,7 @@
 const TUid KSkylinerUid={0x0F700660};
 class CFlightView:public CCoeControl,public MDirectScreenAccess {
 public:
-    CFlightView():iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iScreenBase(0),iScreenStride(0),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
+    CFlightView():iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iScreenBase(0),iScreenStride(0),iMapError(0),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
     void ConstructL() {
         CreateWindowL();SetExtentToWholeScreen();
         iMenuBitmap=new(ELeave)CFbsBitmap;
@@ -43,7 +43,8 @@ public:
         if(!iDsa)iDsa=CDirectScreenAccess::NewL(iEikonEnv->WsSession(),*iEikonEnv->ScreenDevice(),Window(),*this);
         iScreenBase=0;iScreenStride=0;iDsaReady=EFalse;
         iDsa->StartL(); // Refreshes both origin and clipping region.
-        MapScreenL();iDsaReady=ETrue;
+        TRAPD(mapError,MapScreenL());iMapError=mapError;
+        iDsaReady=ETrue; // Diagnostic GC remains usable when raw mapping is unsupported.
     }
     void AbortNow(RDirectScreenAccess::TTerminationReasons){
         // No Window Server calls here: the server is waiting for our return.
@@ -60,26 +61,23 @@ public:
     void DisplayLog(const TDesC8& text){
         RFile log;if(log.Replace(iEikonEnv->FsSession(),_L("C:\\Skyliner700-display.log"),EFileWrite)==KErrNone){log.Write(text);log.Close();}
     }
-    TInt DisplayValueL(HALData::TAttribute attribute,TInt mode=0){
-        TInt value=mode;TInt error=HAL::Get(attribute,value);
-        if(error!=KErrNone){TBuf8<80> text;text.Format(_L8("HAL attribute %d error %d\r\n"),(TInt)attribute,error);DisplayLog(text);User::Leave(error);}
-        return value;
-    }
     void MapScreenL(){
-        const TInt mode=DisplayValueL(HALData::EDisplayMode);
-        const TInt address=DisplayValueL(HALData::EDisplayMemoryAddress);
-        const TInt offset=DisplayValueL(HALData::EDisplayOffsetToFirstPixel,mode);
-        const TInt pitch=DisplayValueL(HALData::EDisplayOffsetBetweenLines,mode);
-        const TInt bpp=DisplayValueL(HALData::EDisplayBitsPerPixel,mode);
-        const TInt rgb=DisplayValueL(HALData::EDisplayIsPixelOrderRGB);
-        const TInt landscape=DisplayValueL(HALData::EDisplayIsPixelOrderLandscape);
-        const TInt width=DisplayValueL(HALData::EDisplayXPixels);
-        const TInt height=DisplayValueL(HALData::EDisplayYPixels);
-        TBuf8<256> info;
-        info.Format(_L8("mode %d base %08x offset %d pitch %d bpp %d rgb %d landscape %d size %dx%d fbs %d orientation %d\r\n"),
-                    mode,(TUint)address,offset,pitch,bpp,rgb,landscape,width,height,
-                    (TInt)iDsa->ScreenDevice()->DisplayMode(),(TInt)iDsa->ScreenDevice()->Orientation());
-        DisplayLog(info);
+        const HALData::TAttribute attributes[9]={HALData::EDisplayMode,HALData::EDisplayMemoryAddress,
+            HALData::EDisplayOffsetToFirstPixel,HALData::EDisplayOffsetBetweenLines,
+            HALData::EDisplayBitsPerPixel,HALData::EDisplayIsPixelOrderRGB,
+            HALData::EDisplayIsPixelOrderLandscape,HALData::EDisplayXPixels,HALData::EDisplayYPixels};
+        TInt firstError=KErrNone;TBuf8<768> report;
+        for(TInt n=0;n<9;++n){
+            iDisplayValues[n]=(n>=2&&n<=4&&iDisplayErrors[0]==KErrNone)?iDisplayValues[0]:0;
+            iDisplayErrors[n]=HAL::Get(attributes[n],iDisplayValues[n]);
+            TBuf8<80> line;line.Format(_L8("attribute %d value %08x error %d\r\n"),
+                (TInt)attributes[n],(TUint)iDisplayValues[n],iDisplayErrors[n]);report.Append(line);
+            if(firstError==KErrNone&&iDisplayErrors[n]!=KErrNone)firstError=iDisplayErrors[n];
+        }
+        DisplayLog(report);User::LeaveIfError(firstError);
+        const TInt mode=iDisplayValues[0],address=iDisplayValues[1],offset=iDisplayValues[2];
+        const TInt pitch=iDisplayValues[3],bpp=iDisplayValues[4],rgb=iDisplayValues[5];
+        const TInt landscape=iDisplayValues[6],width=iDisplayValues[7],height=iDisplayValues[8];
         // No guessed address, palette prefix, pitch or rotation on unsupported HW.
         if(!address||offset<0||offset>65536||pitch<width*2||pitch>8192||
            (pitch&1)||bpp!=16||!rgb||landscape||width!=SKY_DISPLAY_W||height!=SKY_DISPLAY_H||
@@ -95,7 +93,9 @@ public:
         iScreenStride=pitch>>1;iScreenBase=(Pixel*)first;
     }
     void Present(){
-        if(iDsaSuspended||!iDsaReady||!iScreenBase)return;
+        if(iDsaSuspended||!iDsaReady)return;
+        if(iMapError){PaintDisplayDiagnostic(*iDsa->Gc());iDsa->ScreenDevice()->Update(*iDsa->DrawingRegion());return;}
+        if(!iScreenBase)return;
         const RRegion* region=iDsa->DrawingRegion();
         if(!region||region->CheckError()||region->IsEmpty())return;
         const TBool menu=iMenu.Visible();
@@ -133,7 +133,7 @@ public:
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
     void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
-    TBool ContinuousFrames()const{return !iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused();}
+    TBool ContinuousFrames()const{return !iMapError&&!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused();}
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
         UpdateRepeatPolicy();
@@ -143,6 +143,7 @@ public:
         // Actions run once per frame, never inside the WS event callback.
         // Exit can destroy this view: return immediately after requesting it.
         if(buttons.pressed&FlightButtons::Exit){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return 1;}
+        if(iMapError)return 1;
         if(buttons.pressed&FlightButtons::Select){ToggleMenu();return 1;}
         if(iMenu.Visible()){
             if(buttons.pressed&(FlightButtons::PitchUp|FlightButtons::MenuUp))iMenu.Move(-1);
@@ -203,6 +204,26 @@ public:
         // Window Server redraw events do not present game frames.
         // DSA Restart/Present owns all scene and menu drawing.
     }
+    void PaintDisplayDiagnostic(CBitmapContext& gc)const{
+        gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));
+        gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
+        gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
+        gc.UseFont(iEikonEnv->LegendFont());
+        gc.DrawText(_L("FRAMEBUFFER 0.1.22"),TPoint(2,13));
+        TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
+        const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
+            _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
+        for(TInt n=0;n<9;++n){
+            TPtrC label(labels[n]);
+            if(n==1)text.Format(_L("%S %08x e%d"),&label,(TUint)iDisplayValues[n],iDisplayErrors[n]);
+            else text.Format(_L("%S %d e%d"),&label,iDisplayValues[n],iDisplayErrors[n]);
+            gc.DrawText(text,TPoint(2,39+n*13));
+        }
+        text.Format(_L("FBS %d ORI %d"),(TInt)iDsa->ScreenDevice()->DisplayMode(),(TInt)iDsa->ScreenDevice()->Orientation());
+        gc.DrawText(text,TPoint(2,169));
+        TPoint origin=PositionRelativeToScreen();text.Format(_L("ORIGIN %d %d"),origin.iX,origin.iY);gc.DrawText(text,TPoint(2,182));
+        gc.DrawText(_L("# / RIGHT SOFT: EXIT"),TPoint(2,201));gc.DiscardFont();
+    }
     void PaintHud(CBitmapContext& gc) const {
         gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(2,2,174,31));
@@ -221,6 +242,7 @@ private:
     CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
     Pixel* iScreenBase;TInt iScreenStride;TPoint iScreenOrigin;
+    TInt iMapError,iDisplayValues[9],iDisplayErrors[9];
     KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
     FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
 };

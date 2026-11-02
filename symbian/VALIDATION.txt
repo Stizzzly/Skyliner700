@@ -1,12 +1,7 @@
-Version 0.1.21: RGB565 scale directly into HAL screen memory under DSA
-ARMI UREL ARM32 / no-FP / division/span audits: PASS
-Native HAL::Get present and all BitBlt imports absent: PASS
-Flight full-screen CFbsBitmap removed; menu bitmap retained
-1200 direct framebuffer bounds/clips/pitch/alignment/menu cases: PASS
-Full preview regression suite: PASS; raster checksum 86c26771 unchanged
-Owned uncapped input/frame loop and button tests: PASS
-SIS APP/RSC/AIF identity with native build: PASS
-Framebuffer mapping and DSA abort/restart on actual Nokia firmware: pending
-On-device 0.1.21 FPS gain: not measured (0.1.20 reported 27-30 FPS)
-Unsupported HAL/layout is rejected; phone diagnostic: C:\Skyliner700-display.log
-SHA256 SIS: 920828dfba42e4e7e8efb3bf19218aec62ffb4fff0a367a016adb2fa4e78f02a
+Version 0.1.22: collect HAL failures and show DSA diagnostic instead of startup leave
+Native ARM32/no-FP/owned-pump/BitBlt-absence audit: PASS
+Native SDK build and SIS structure: PASS
+Framebuffer compatibility and diagnostic screen on device: pending
+0.1.21 device startup returned function-not-supported; failing query/validation not yet identified
+FPS improvement not measured; use 0.1.20 for known-working flight
+SHA256 SIS: fbd3c14c8e84dec51faecf413fe35e4d6652cca1ca62efec0171b8a5e973b99f
