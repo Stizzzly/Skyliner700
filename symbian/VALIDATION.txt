@@ -1,13 +1,9 @@
-Version 0.1.25: binned 44x52 tiles with local color/Z
-Active tile color+depth: 9152 bytes, 32-byte aligned; full-frame Z removed
-Native SDK / ARM32 / no-FP / existing no-divide audits: PASS
-Native DrawPrepared: no division/modulo helpers: PASS
-80 poses tiled/scalar/coverage/untiled/original 0.1.7: 86c26771 identical
-240 randomized 96-triangle batches and Z ties/guards tiled vs untiled: f9e2f17b identical
-1200 direct framebuffer tests and full preview regressions: PASS
-Native ARM Unicorn pair kernel + wrapper 10000 cases: PASS
-SIS APP/RSC/AIF identity: PASS
-On-device tile render correctness/DSA/FPS: pending
-0.1.24 baseline reported 32-34 FPS; tile speedup not measured
-Tradeoff: prepared-triangle/bin storage and color resolve copy
-SHA256 SIS: a0ef1cadd9a27de2ed14e8c61565fbaf24c62f1a1e3746f8e1004a480928ebc0
+Version 0.1.26: revert tile renderer to 0.1.24
+User device result: 0.1.25 slower; explicitly rejected
+soft3d.cpp/h restored byte-for-byte from fa95a51 (0.1.24)
+Direct framebuffer, no BitBlt, uncapped manual frame loop retained
+Native SDK build, ARM32/no-FP/divide/span audits: PASS
+Full preview/math/physics/menu/framebuffer regressions: PASS; 86c26771 unchanged
+Legacy SIS APP/RSC/AIF and native payload identity: PASS
+0.1.24 measured 32-34 FPS; 0.1.26 device measurement pending
+SHA256 SIS: 4ad050a30fe4e1f625443a1a6981d1a34ffc95ebcc3ea5eb5fbdbc9a046aafbf
