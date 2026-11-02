@@ -1,0 +1,9 @@
+SystemDump 0.1.0, UID 0x0F700663
+SDK S60 2nd Edition 2.0 / ARMI UREL: PASS
+APP no writable data/BSS, one export: PASS
+Native ARM32 / no-FP / no global constructors: PASS
+SendUI + Bluetooth MTM UID present: PASS
+Streaming ZIP fixtures and independent CRC/byte/name/rollback checks: PASS
+Legacy SIS APP/RSC/UID/destinations + SDK payload identity: PASS
+Device ROM traversal, MMC/disk-full/cancel and Bluetooth large-file transfer: pending
+SHA256: 8fd69fd2c70ec29ce891090c96d4170a9342e78ef3a911cabe6f9cbf5708e156

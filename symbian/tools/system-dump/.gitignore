@@ -1,0 +1,6 @@
+/SystemDump.sis
+/group/ABLD.BAT
+/group/dump.generated.pkg
+/tests/*.exe
+/tests/*.zip
+/tests/*.log
