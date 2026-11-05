@@ -64,4 +64,21 @@ int main(){
         if(memcmp(pixels,expected,sizeof(pixels))||memcmp(renderer.depth,expectedDepth,sizeof(expectedDepth))){fprintf(stderr,"Clipping mismatch %d\n",sample);return 1;}
     }
     puts("PASS: 12000 clipping cases match previous color/depth buffers, including near-plane boundaries.");
+    renderer.eye=V(0,0,0);renderer.right=V(1,0,0);renderer.up=V(0,1,0);renderer.forward=V(0,0,1);
+    for(int sample=0;sample<1000;++sample){
+        Vec v[4];
+        for(int i=0;i<4;++i){
+            seed=seed*1664525u+1013904223u;v[i].x=((int)(seed%20000001)-10000000)*4;
+            seed=seed*1664525u+1013904223u;v[i].y=((int)(seed%20000001)-10000000)*4;
+            seed=seed*1664525u+1013904223u;v[i].z=((int)(seed%20000001)-4000000)*4;
+        }
+        renderer.depthBias=(sample%3)*2;
+        memset(pixels,0,sizeof(pixels));memset(renderer.depth,0,sizeof(renderer.depth));
+        Reference(v[0],v[1],v[2]);Reference(v[0],v[2],v[3]);
+        memcpy(expected,pixels,sizeof(pixels));memcpy(expectedDepth,renderer.depth,sizeof(expectedDepth));
+        memset(pixels,0,sizeof(pixels));memset(renderer.depth,0,sizeof(renderer.depth));
+        renderer.Quad(v[0],v[1],v[2],v[3],12345);
+        if(memcmp(pixels,expected,sizeof(pixels))||memcmp(renderer.depth,expectedDepth,sizeof(expectedDepth))){fprintf(stderr,"Quad mismatch %d\n",sample);return 1;}
+    }
+    puts("PASS: 1000 cached quads match separate reference triangles in color/Z, clipping and bias 0/2/4.");
 }

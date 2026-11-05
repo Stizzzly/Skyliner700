@@ -134,6 +134,21 @@ static Screen Project(const Vec& v){
     s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*1000,v.z,inverse);
     s.z=ReciprocalDivide(30000LL*65536,v.z,inverse);return s;
 }
+// Shared classification/projection for vertices referenced by several triangles.
+void Soft3D::DrawCachedTriangle(const Vec* view,const Screen* screen,const unsigned char* codes,int a,int b,int c,Pixel color){
+    unsigned ca=codes[a],cb=codes[b],cc=codes[c];
+    if(ca&cb&cc)return;
+    unsigned mask=ca|cb|cc;
+    if(!mask)RasterScreen(screen[a],screen[b],screen[c],color);
+    else ClipIntersectingTriangle(view[a],view[b],view[c],color,mask);
+}
+void Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color){
+    Vec view[4];view[0]=View(a);view[1]=View(b);view[2]=View(c);view[3]=View(d);
+    Screen screen[4];unsigned char codes[4];
+    for(int i=0;i<4;++i){codes[i]=(unsigned char)Outcode(view[i]);if(!codes[i])screen[i]=Project(view[i]);}
+    DrawCachedTriangle(view,screen,codes,0,1,2,color);
+    DrawCachedTriangle(view,screen,codes,0,2,3,color);
+}
 static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);}
 // Horizontal span: coverage has already been resolved once for the whole row.
 // Only the required Z test remains per pixel. Advance pointers and depth once.
@@ -279,21 +294,23 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     }
     // Polygon offset prevents coplanar runway/ground quantization fighting.
     depthBias=2;
-    Triangle(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),RGB(62,66,70));
-    Triangle(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),V(-15,Fix::Raw(3604),300),RGB(62,66,70));
+    Quad(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),V(-15,Fix::Raw(3604),300),RGB(62,66,70));
     depthBias=4;
     for(int mark=-280;mark<300;mark+=40){
-        Triangle(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
-        Triangle(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
+        Quad(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
     }
     depthBias=0;
     Fix sp=(Fix)FxSin(s.pitch),cp=(Fix)FxCos(s.pitch),sr=(Fix)FxSin(s.roll),cr=(Fix)FxCos(s.roll);
-    for(int i=0;i<PLANE_COUNT;i+=3){Vec v[3];
-        for(int j=0;j<3;++j){Fix px=Fix::Raw(plane[i+j].x),py=Fix::Raw(plane[i+j].y),pz=Fix::Raw(plane[i+j].z);
-            Fix x=px*cr+py*sr,y=-px*sr+py*cr;
-            Fix yy=y*cp-pz*sp,zz=y*sp+pz*cp;
-            v[j]=V(s.x+x*cy-zz*sy,s.y+yy,s.z+x*sy+zz*cy);
-        }
-        Triangle(v[0],v[1],v[2],i<48?RGB(205,211,218):RGB(211,66,42));
+    Vec view[PLANE_VERTEX_COUNT];Screen screen[PLANE_VERTEX_COUNT];unsigned char codes[PLANE_VERTEX_COUNT];
+    for(int i=0;i<PLANE_VERTEX_COUNT;++i){
+        Fix px=Fix::Raw(plane[i].x),py=Fix::Raw(plane[i].y),pz=Fix::Raw(plane[i].z);
+        // Preserve the original fixed-point operation order exactly.
+        Fix x=px*cr+py*sr,y=-px*sr+py*cr;
+        Fix yy=y*cp-pz*sp,zz=y*sp+pz*cp;
+        view[i]=View(V(s.x+x*cy-zz*sy,s.y+yy,s.z+x*sy+zz*cy));
+        codes[i]=(unsigned char)Outcode(view[i]);
+        if(!codes[i])screen[i]=Project(view[i]);
     }
+    for(int i=0;i<PLANE_COUNT;i+=3)
+        DrawCachedTriangle(view,screen,codes,planeIndices[i],planeIndices[i+1],planeIndices[i+2],i<48?RGB(205,211,218):RGB(211,66,42));
 }

@@ -1,13 +1,15 @@
-Version 0.1.32: unrolled Outcode with two shared side-plane products
-No Outcode loop/switch/Distance calls; side/near comparisons preserve bit masks
-1000000 random full-range outcodes + signed extremes/plane boundaries: PASS
-Independent clipping reference retains old Distance-based Outcode
-12000 clipping differential cases: identical color/depth buffers
+Version 0.1.33: indexed aircraft and cached runway/marking quads
+Aircraft: 35 unique transformed/classified vertices instead of 84 occurrences
+Original fixed-point operation order, triangle order and materials retained
+Quad: 4 shared View/Outcode calculations instead of 6; interior projections cached
+Fused Local->View basis investigated but not enabled due to rounding differences
+Indexed geometry generator --check: original 84 vertices reconstructed exactly
+1000 Quad comparisons vs two reference triangles: exact color/Z, bias 0/2/4
+1000000 random outcodes and 12000 clipping differential cases: PASS
 80 camera poses: checksum 86c26771 unchanged
 Full preview/math/physics/menu/framebuffer regressions: PASS
 Native SDK build, ARM32/no-FP/divide/span audits: PASS
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.31 user-reported gain: approximately 1 FPS
-0.1.32 device FPS measurement pending
-Full Z, direct framebuffer, no tiles, uncapped loop retained
-SHA256 SIS: 33e4a9c1a440c2aeabff6e140683cb3ef3e1e0ad7218abefb5e0c529db704091
+0.1.32 user reported an FPS increase, no exact amount given
+0.1.33 device FPS measurement pending
+SHA256 SIS: d613a02a2f3c79fbf93af54bb77ab068c5468b8462dcb9d8df707c5ee08758b4
