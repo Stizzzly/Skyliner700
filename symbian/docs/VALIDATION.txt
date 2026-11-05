@@ -1,15 +1,12 @@
-Version 0.1.33: indexed aircraft and cached runway/marking quads
-Aircraft: 35 unique transformed/classified vertices instead of 84 occurrences
-Original fixed-point operation order, triangle order and materials retained
-Quad: 4 shared View/Outcode calculations instead of 6; interior projections cached
-Fused Local->View basis investigated but not enabled due to rounding differences
-Indexed geometry generator --check: original 84 vertices reconstructed exactly
-1000 Quad comparisons vs two reference triangles: exact color/Z, bias 0/2/4
-1000000 random outcodes and 12000 clipping differential cases: PASS
+Version 0.1.34: paired 32-bit sky fill
+ClearSky: 4576 STR on normal aligned buffer instead of 9152 STRH
+Same byte volume; row pointer advanced by stride, no row multiply
+Unaligned rows/odd strides supported via halfword fallback
+20 stride/alignment/guard sky-fill cases: PASS
 80 camera poses: checksum 86c26771 unchanged
-Full preview/math/physics/menu/framebuffer regressions: PASS
-Native SDK build, ARM32/no-FP/divide/span audits: PASS
+Full preview/math/physics/menu/framebuffer/clipping/quad regressions: PASS
+Native SDK build and ARM32/no-FP/divide/span audits: PASS
+Native disassembly confirms packed STR path and no ClearSky multiplication
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.32 user reported an FPS increase, no exact amount given
-0.1.33 device FPS measurement pending
-SHA256 SIS: d613a02a2f3c79fbf93af54bb77ab068c5468b8462dcb9d8df707c5ee08758b4
+0.1.34 device FPS measurement pending
+SHA256 SIS: 9fece6bf6497798cd21036adc75d919a837186549a5b6b83628daff745613669

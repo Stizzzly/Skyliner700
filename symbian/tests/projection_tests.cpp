@@ -58,7 +58,21 @@ static void CheckSpanPairs(){
     }
     puts("PASS: 10000 span cases, four Z masks, pointer parity, odd tails and full buffer guards.");
 }
+static void CheckSkyFill(){
+    Pixel pixels[(SKY_W+9)*SKY_H+32];
+    for(int stride=SKY_W;stride<=SKY_W+9;++stride)for(int offset=8;offset<10;++offset){
+        for(unsigned i=0;i<sizeof(pixels)/sizeof(pixels[0]);++i)pixels[i]=0xA55A;
+        ClearSky(pixels+offset,stride);
+        for(unsigned i=0;i<sizeof(pixels)/sizeof(pixels[0]);++i){
+            int index=(int)i-offset;
+            bool inside=index>=0&&index<stride*SKY_H&&index%stride<SKY_W;
+            if(pixels[i]!=(inside?RGB(90,155,205):0xA55A)){fprintf(stderr,"Sky fill alignment/stride/guard mismatch\n");exit(1);}
+        }
+    }
+    puts("PASS: 20 sky fills, aligned/halfword-offset buffers, odd/even strides and complete guards.");
+}
 int main(){
+    CheckSkyFill();
     CheckSpanPairs();
     const int speedInputs[]={0,1,-1,2147483647,(-2147483647-1),5898240,-5898240};
     const unsigned speedDivisors[]={1310720,1310721,3276800,5898240,5898241,2147483647};

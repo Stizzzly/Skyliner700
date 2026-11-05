@@ -63,6 +63,19 @@ static inline Vec Mul(const Vec& a,Fix scale){Vec v;v.x=RawMul(a.x,scale.raw);v.
 static inline Fix Dot(const Vec& a,const Vec& b){return Fix::Raw(RawAdd(RawAdd(RawMul(a.x,b.x),RawMul(a.y,b.y)),RawMul(a.z,b.z)));}
 static inline Vec Cross(const Vec& a,const Vec& b){Vec v;v.x=RawSub(RawMul(a.y,b.z),RawMul(a.z,b.y));v.y=RawSub(RawMul(a.z,b.x),RawMul(a.x,b.z));v.z=RawSub(RawMul(a.x,b.y),RawMul(a.y,b.x));return v;}
 static Pixel RGB(int r,int g,int b) { return (Pixel)(((r>>3)<<11)|((g>>2)<<5)|(b>>3)); }
+static void ClearSky(Pixel* destination,int stride){
+    const Pixel sky=RGB(90,155,205);
+    const unsigned packed=(unsigned)sky|((unsigned)sky<<16);
+    Pixel* row=destination;
+    for(int y=0;y<SKY_H;++y,row+=stride){
+        // Check per row so odd strides and halfword-aligned buffers remain valid.
+        if(((size_t)row&3)==0){
+            for(int x=0;x<SKY_W;x+=2)WritePair(row+x,packed);
+        }else{
+            for(int x=0;x<SKY_W;++x)row[x]=sky;
+        }
+    }
+}
 Soft3D::Soft3D():terrainX(0x7fffffff),terrainZ(0x7fffffff),target(0),pitch(SKY_W),depthBias(0) {}
 Vec Soft3D::View(const Vec& p) const { Vec relative=Sub(p,eye); return V(Dot(relative,right),Dot(relative,up),Dot(relative,forward)); }
 /* Near and side planes keep perspective divisions bounded, including when
@@ -255,7 +268,7 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
 void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     target=pixels;pitch=stride;depthBias=0;
     memset(depth,0,sizeof(depth));
-    for(int y=0;y<SKY_H;++y)for(int x=0;x<SKY_W;++x)target[y*pitch+x]=RGB(90,155,205);
+    ClearSky(target,pitch);
     Fix sy=(Fix)FxSin(s.yaw),cy=(Fix)FxCos(s.yaw);
     eye=V(s.x-sy*17,s.y+6,s.z+cy*17);
     // Chase offset is constant (29 horizontal, -5 vertical). Normalize offline.
