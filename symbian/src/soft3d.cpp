@@ -53,7 +53,22 @@ void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int dest
         }
     }
 }
-static inline int RawMul(int a,int b){return Fix::Narrow(((Wide)a*b)>>16);}
+static inline int RawMul(int a,int b){
+#if defined(__MARM__) && defined(__GCC32__)
+    int result,hi;
+    // hi must be the sign-extended upper half of the assembled Q16.16 result.
+    __asm__("smull %0, %1, %2, %3\n\t"
+            "mov %0, %0, lsr #16\n\t"
+            "orr %0, %0, %1, lsl #16\n\t"
+            "teq %1, %0, asr #16\n\t"
+            "mvnne %0, %1, asr #31\n\t"
+            "eorne %0, %0, #0x80000000"
+            : "=&r"(result),"=&r"(hi) : "r"(a),"r"(b) : "cc");
+    return result;
+#else
+    return Fix::Narrow(((Wide)a*b)>>16);
+#endif
+}
 // Exact signed saturation with 32-bit arithmetic; no wide carry/borrow chain.
 static inline int RawAdd(int a,int b){
 #if defined(__MARM__) && defined(__GCC32__)
