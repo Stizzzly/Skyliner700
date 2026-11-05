@@ -1,4 +1,5 @@
 // Differential test against the pre-0.1.31 five-plane clipping algorithm.
+#define SKY_TEST_PROJECT_COUNTS
 #define private public
 #include "../src/soft3d.cpp"
 #undef private
@@ -72,13 +73,27 @@ int main(){
             seed=seed*1664525u+1013904223u;v[i].y=((int)(seed%20000001)-10000000)*4;
             seed=seed*1664525u+1013904223u;v[i].z=((int)(seed%20000001)-4000000)*4;
         }
+        if(sample<5){
+            v[0]=V(-1,-1,10);v[1]=V(1,-1,10);v[2]=V(1,1,10);v[3]=V(-1,1,10);
+            if(sample==1)v[1].z=65536;
+            if(sample==2)v[3].z=65536;
+            if(sample==3)v[0].z=65536;
+            if(sample==4)for(int i=0;i<4;++i)v[i].z=-655360;
+        }
         renderer.depthBias=(sample%3)*2;
         memset(pixels,0,sizeof(pixels));memset(renderer.depth,0,sizeof(renderer.depth));
+        projectCalls=0;
         Reference(v[0],v[1],v[2]);Reference(v[0],v[2],v[3]);
+        unsigned referenceProjects=projectCalls;
         memcpy(expected,pixels,sizeof(pixels));memcpy(expectedDepth,renderer.depth,sizeof(expectedDepth));
         memset(pixels,0,sizeof(pixels));memset(renderer.depth,0,sizeof(renderer.depth));
+        projectCalls=0;
         renderer.Quad(v[0],v[1],v[2],v[3],12345);
+        unsigned m0=ReferenceOutcode(v[0])|ReferenceOutcode(v[1])|ReferenceOutcode(v[2]);
+        unsigned m1=ReferenceOutcode(v[0])|ReferenceOutcode(v[2])|ReferenceOutcode(v[3]);
+        unsigned expectedProjects=referenceProjects-(!m0&&!m1?2u:0u);
+        if(projectCalls!=expectedProjects){fprintf(stderr,"Unused quad projections: %d, %u vs %u\n",sample,projectCalls,expectedProjects);return 1;}
         if(memcmp(pixels,expected,sizeof(pixels))||memcmp(renderer.depth,expectedDepth,sizeof(expectedDepth))){fprintf(stderr,"Quad mismatch %d\n",sample);return 1;}
     }
-    puts("PASS: 1000 cached quads match separate reference triangles in color/Z, clipping and bias 0/2/4.");
+    puts("PASS: 1000 cached quads match reference color/Z and projection counts; full/mixed/clipped/rejected paths, bias 0/2/4.");
 }

@@ -185,7 +185,13 @@ static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse)
     if(remainder>=(unsigned)denominator)++q;
     return negative?-(int)q:(int)q;
 }
+#ifdef SKY_TEST_PROJECT_COUNTS
+static unsigned projectCalls=0;
+#endif
 static Screen Project(const Vec& v){
+#ifdef SKY_TEST_PROJECT_COUNTS
+    ++projectCalls;
+#endif
     UWide inverse=DepthInverse(v.z);
     Screen s;s.x=SKY_W*8+ReciprocalDivide((Wide)v.x*1000,v.z,inverse);
     s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*1000,v.z,inverse);
@@ -201,10 +207,24 @@ void Soft3D::DrawCachedTriangle(const Vec* view,const Screen* screen,const unsig
 }
 void Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color){
     Vec view[4];view[0]=View(a);view[1]=View(b);view[2]=View(c);view[3]=View(d);
-    Screen screen[4];unsigned char codes[4];
-    for(int i=0;i<4;++i){codes[i]=(unsigned char)Outcode(view[i]);if(!codes[i])screen[i]=Project(view[i]);}
-    DrawCachedTriangle(view,screen,codes,0,1,2,color);
-    DrawCachedTriangle(view,screen,codes,0,2,3,color);
+    unsigned c0=Outcode(view[0]),c1=Outcode(view[1]),c2=Outcode(view[2]),c3=Outcode(view[3]);
+    if(c0&c1&c2&c3)return;
+    unsigned m0=c0|c1|c2,m1=c0|c2|c3;
+    Screen screen[4];
+    // Only accepted triangles consume the projected cache; clipped ones project later.
+    if(!m0||!m1){
+        screen[0]=Project(view[0]);screen[2]=Project(view[2]);
+        if(!m0)screen[1]=Project(view[1]);
+        if(!m1)screen[3]=Project(view[3]);
+    }
+    if(!(c0&c1&c2)){
+        if(!m0)RasterScreen(screen[0],screen[1],screen[2],color);
+        else ClipIntersectingTriangle(view[0],view[1],view[2],color,m0);
+    }
+    if(!(c0&c2&c3)){
+        if(!m1)RasterScreen(screen[0],screen[2],screen[3],color);
+        else ClipIntersectingTriangle(view[0],view[2],view[3],color,m1);
+    }
 }
 static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);}
 // Horizontal span: coverage has already been resolved once for the whole row.

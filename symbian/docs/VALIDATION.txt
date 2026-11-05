@@ -1,13 +1,14 @@
-Version 0.1.37: unrolled edges and incremental scanline pointers
-No source modulo in edge setup; old compiler already removed constant-mod helper
-Old y*SKY_W used shift/add, old y*pitch used MUL during row presentation
-New row pointers initialized once and advanced by stride/width
-row[0..2] updates explicitly unrolled; empty bounding boxes return early
-Row-base pointers keep final increments at most one-past-end
+Version 0.1.38: project Quad vertices only for fully accepted triangles
+All four codes classified first; shared reject returns before projection
+Cache 0/2 once only when needed, 1/3 only for their accepted triangle
+Clipped triangles bypass unused projected cache; no new division removal claimed
+1000 Quad cases: exact reference color/Z and expected Project call counts
+Explicit both-visible/one-visible/both-clipped/rejected paths, bias 0/2/4
+Instrumentation macro excluded from phone build
 80 camera poses: checksum 86c26771 unchanged
 Full preview/math/physics/menu/framebuffer/clipping/quad regressions: PASS
 Native SDK build and ARM32/no-FP/divide/span audits: PASS
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.36 user reported no FPS change; baseline remains 44-45 FPS on ground
-0.1.37 device FPS measurement pending
-SHA256 SIS: 4459e95ce62f88596a04ef99722d37dd308d6dbb7177f865004bf4befceb8789
+Measured 0.1.37 baseline: 46-47 ground, 51 airborne FPS (user report)
+0.1.38 device FPS measurement pending
+SHA256 SIS: 35e0e12500b144641ea3149bcdb5d4d565b54343d672027eb726df89f38276f3
