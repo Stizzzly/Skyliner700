@@ -1,14 +1,13 @@
-Version 0.1.36: branch-free ARM RawMul with exact saturation
-SMULL/MOV/ORR/TEQ/MVNNE/EORNE, six instructions, no branches or helper calls
-Correct comparison: hi == assembled_result ASR 16, not ASR 15
-Early-clobber operands retain ARMv4T SMULL register constraints
-30289 actual native products vs wide reference: PASS
-Coverage: full signed range, both saturation limits, ordinary products, negative shifts
-20162 native add/sub results vs wide reference: PASS
-Portable C++ reference and 80 camera poses: checksum 86c26771 unchanged
+Version 0.1.37: unrolled edges and incremental scanline pointers
+No source modulo in edge setup; old compiler already removed constant-mod helper
+Old y*SKY_W used shift/add, old y*pitch used MUL during row presentation
+New row pointers initialized once and advanced by stride/width
+row[0..2] updates explicitly unrolled; empty bounding boxes return early
+Row-base pointers keep final increments at most one-past-end
+80 camera poses: checksum 86c26771 unchanged
 Full preview/math/physics/menu/framebuffer/clipping/quad regressions: PASS
 Native SDK build and ARM32/no-FP/divide/span audits: PASS
 Legacy SIS APP/RSC/AIF structure: PASS
-Measured 0.1.35 baseline: 44-45 FPS on ground (user report)
-0.1.36 device FPS measurement pending
-SHA256 SIS: 68fce3c52cf7455d59e6513dab296e8537e53f7f3161395fb909bf9cce5a3074
+0.1.36 user reported no FPS change; baseline remains 44-45 FPS on ground
+0.1.37 device FPS measurement pending
+SHA256 SIS: 4459e95ce62f88596a04ef99722d37dd308d6dbb7177f865004bf4befceb8789

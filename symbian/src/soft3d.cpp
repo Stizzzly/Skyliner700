@@ -271,8 +271,15 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     if(maxx>=SKY_W)maxx=SKY_W-1;
     if(miny<0)miny=0;
     if(maxy>=SKY_H)maxy=SKY_H-1;
+    if(minx>maxx||miny>maxy)return;
     int row[3],dx[3],dy[3];
-    for(int e=0;e<3;++e){Screen u=s[(e+1)%3],v=s[(e+2)%3];row[e]=Edge(u,v,minx*16+8,miny*16+8);dx[e]=-(v.y-u.y)*16;dy[e]=(v.x-u.x)*16;}
+    const int sampleX=minx*16+8,sampleY=miny*16+8;
+    row[0]=Edge(s[1],s[2],sampleX,sampleY);
+    row[1]=Edge(s[2],s[0],sampleX,sampleY);
+    row[2]=Edge(s[0],s[1],sampleX,sampleY);
+    dx[0]=-(s[2].y-s[1].y)*16;dy[0]=(s[2].x-s[1].x)*16;
+    dx[1]=-(s[0].y-s[2].y)*16;dy[1]=(s[0].x-s[2].x)*16;
+    dx[2]=-(s[1].y-s[0].y)*16;dy[2]=(s[1].x-s[0].x)*16;
     UWide inverseArea=AreaInverse((unsigned)area);
     int dzx=(int)AreaDivide(((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256,(unsigned)area,inverseArea);
     int dzy=(int)AreaDivide(((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256,(unsigned)area,inverseArea);
@@ -285,6 +292,9 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
         int step=dx[edge];edgeDivisor[edge]=(unsigned)(step<0?-step:step);
         edgeInverse[edge]=step?EdgeInverse(edgeDivisor[edge]):0;
     }
+    // Keep base-of-row pointers so the final increment is at most one-past-end.
+    Pixel* dstRow=target+miny*pitch;
+    Pixel* zRow=depth+miny*SKY_W;
 #endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
@@ -303,9 +313,13 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             else if(step<0){if(w<0){last=-1;break;}int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);if(bound<last)last=bound;}
             else if(step==0&&w<0){last=-1;break;}
         }
-        if(first<=last)DrawSpan(target+y*pitch+minx+first,depth+y*SKY_W+minx+first,last-first+1,rowz+dzx*first,dzx,color);
+        if(first<=last){
+            int start=minx+first;
+            DrawSpan(dstRow+start,zRow+start,last-first+1,rowz+dzx*first,dzx,color);
+        }
+        dstRow+=pitch;zRow+=SKY_W;
 #endif
-        for(int j=0;j<3;++j)row[j]+=dy[j];
+        row[0]+=dy[0];row[1]+=dy[1];row[2]+=dy[2];
         rowz+=dzy;
     }
 }
