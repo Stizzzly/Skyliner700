@@ -6,8 +6,16 @@
 #include <stdlib.h>
 static Soft3D renderer;
 static Pixel pixels[SKY_W*SKY_H],expected[SKY_W*SKY_H],expectedDepth[SKY_W*SKY_H];
+static unsigned ReferenceOutcode(const Vec& v){
+    unsigned code=0;
+    for(int plane=0;plane<5;++plane)if(Distance(v,plane)<0)code|=1u<<plane;
+    return code;
+}
+static void CheckOutcode(const Vec& v){
+    if(Outcode(v)!=ReferenceOutcode(v)){fprintf(stderr,"Outcode mismatch %d %d %d\n",v.x,v.y,v.z);exit(1);}
+}
 static void Reference(const Vec& a,const Vec& b,const Vec& c){
-    unsigned ca=Outcode(a),cb=Outcode(b),cc=Outcode(c);
+    unsigned ca=ReferenceOutcode(a),cb=ReferenceOutcode(b),cc=ReferenceOutcode(c);
     if(ca&cb&cc)return;
     if(!(ca|cb|cc)){renderer.Raster(a,b,c,12345);return;}
     Vec p[12],q[12];int count=3;p[0]=a;p[1]=b;p[2]=c;
@@ -25,6 +33,21 @@ static void Reference(const Vec& a,const Vec& b,const Vec& c){
 }
 int main(){
     unsigned seed=6600;
+    const int values[]={(-2147483647-1),-2147483647,-131073,-131072,-1,0,1,131071,131072,131073,2147483646,2147483647};
+    for(unsigned a=0;a<sizeof(values)/sizeof(values[0]);++a)
+     for(unsigned b=0;b<sizeof(values)/sizeof(values[0]);++b)
+      for(unsigned c=0;c<sizeof(values)/sizeof(values[0]);++c){Vec v={values[a],values[b],values[c]};CheckOutcode(v);}
+    for(int sample=0;sample<1000000;++sample){
+        Vec v;
+        seed=seed*1664525u+1013904223u;v.x=(int)seed;
+        seed=seed*1664525u+1013904223u;v.y=(int)seed;
+        seed=seed*1664525u+1013904223u;v.z=(int)seed;CheckOutcode(v);
+        if(sample<10000){
+            int xLim=RawMul(v.z,46137),yLim=RawMul(v.z,54526);
+            for(int d=-1;d<=1;++d){v.x=xLim+d;v.y=-yLim+d;CheckOutcode(v);v.x=-xLim+d;v.y=yLim+d;CheckOutcode(v);}
+        }
+    }
+    puts("PASS: 1000000 full-range outcodes, signed limits and exact side/near-plane boundaries match five-plane reference.");
     renderer.target=pixels;renderer.pitch=SKY_W;renderer.depthBias=0;
     for(int sample=0;sample<12000;++sample){
         Vec v[3];

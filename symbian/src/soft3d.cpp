@@ -80,8 +80,12 @@ void Soft3D::Triangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     ClipTriangle(View(a),View(b),View(c),color);
 }
 static inline unsigned Outcode(const Vec& v){
-    unsigned code=0;
-    for(int plane=0;plane<5;++plane)if(Distance(v,plane)<0)code|=1u<<plane;
+    const int xLim=RawMul(v.z,46137),yLim=RawMul(v.z,54526);
+    unsigned code=v.z<131072?1u:0u;
+    if(v.x < -xLim)code|=2u;
+    if(v.x > xLim)code|=4u;
+    if(v.y < -yLim)code|=8u;
+    if(v.y > yLim)code|=16u;
     return code;
 }
 void Soft3D::ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {

@@ -1,11 +1,13 @@
-Version 0.1.31: masked clipping, no variable modulo, reused plane distances
-Original edge order/fan anchor and intersection arithmetic retained
-Native SOFT3D.o: __modsi3 removed; clipping __divdi3 remains
+Version 0.1.32: unrolled Outcode with two shared side-plane products
+No Outcode loop/switch/Distance calls; side/near comparisons preserve bit masks
+1000000 random full-range outcodes + signed extremes/plane boundaries: PASS
+Independent clipping reference retains old Distance-based Outcode
 12000 clipping differential cases: identical color/depth buffers
 80 camera poses: checksum 86c26771 unchanged
 Full preview/math/physics/menu/framebuffer regressions: PASS
 Native SDK build, ARM32/no-FP/divide/span audits: PASS
 Legacy SIS APP/RSC/AIF structure: PASS
-Device FPS measurement pending; no claimed clipping cycle speedup
+0.1.31 user-reported gain: approximately 1 FPS
+0.1.32 device FPS measurement pending
 Full Z, direct framebuffer, no tiles, uncapped loop retained
-SHA256 SIS: ff298597c127bb81ec55c0b261207874b3b5ac543b75c2c6a245ebe4b8b43f46
+SHA256 SIS: 33e4a9c1a440c2aeabff6e140683cb3ef3e1e0ad7218abefb5e0c529db704091
