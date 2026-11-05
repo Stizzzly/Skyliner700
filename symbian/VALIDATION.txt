@@ -1,12 +1,13 @@
-Version 0.1.28: paired source-word reads in SkyScale2x
-Existing write-both-rows path retained; framebuffer is never read by scaler
-Aligned source and destination: one LDR for two source pixels, four STR
-Unaligned source/destination and odd strides retain safe fallback paths
-Native Unicorn: 16 alignment/stride cases, pixels/guards/ABI: PASS
-Native Unicorn: zero framebuffer reads, 4576 source word loads on normal path: PASS
-Full-frame Z, direct framebuffer, uncapped loop, terrain outcode reuse retained; no tiles
-Native SDK build and ARM32/no-FP/divide/span audits: PASS
+Version 0.1.29: aligned ARM spans from 2 pixels; odd tail inside kernel
+Internal SkyDrawPairsArm ABI now takes full pixel count >= 2, not pair count
+DrawSpan returns after native call; no post-call pointer/depth multiplication
+Prefix and mismatched-alignment scalar paths retained
+Native Unicorn: 5000 even/odd aligned kernel + 5000 wrapper cases: PASS
+Z masks, alignment, tails, guards and callee-saved ABI: PASS
+Native SDK build and ARM32/no-FP/divide/span/odd-tail audits: PASS
 Full preview/math/physics/menu/framebuffer regressions: PASS; 86c26771 unchanged
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.28 device FPS measurement pending
-SHA256 SIS: 3579447ae2a589af17a0031391d3159cc93e4baab79e565586bf58edaec3e5db
+User 0.1.28 baseline: ground 34 FPS, after takeoff 38 FPS
+0.1.29 device FPS measurement pending; short-call overhead still matters
+Full Z, paired source scaler, cached terrain outcodes, direct framebuffer retained; no tiles
+SHA256 SIS: 01e7407f6daba8c3bc41ba20bd1662fcfa7bf364fb2fef7cc182e502c3a9ea95

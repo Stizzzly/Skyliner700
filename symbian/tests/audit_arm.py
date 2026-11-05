@@ -59,14 +59,15 @@ kernel = re.search(r'<SkyDrawPairsArm>:\n(.*?)(?=^[0-9a-f]+ <DrawSpan)', assembl
 assert kernel, 'Missing ARM pair kernel'
 ops=re.findall(r'^\s*[0-9a-f]+:\s+[0-9a-f]{8}\s+(\w+)\s+(.*)',kernel.group(1),re.M)
 start=next(i for i,(op,args) in enumerate(ops) if op=='ldrh')
-end=next(i for i,(op,args) in enumerate(ops) if op=='ldmia')
+end=next(i for i,(op,args) in enumerate(ops) if op=='bne')+1
 loop=ops[start:end]
 assert [op for op,args in loop[:2]]==['ldrh','ldrh'], 'Pair Z loads are not first'
 assert next(i for i,(op,args) in enumerate(loop) if op.startswith('cmp'))>=8, 'Z load-use gap lost'
 assert not any(re.search(r'\b(?:sp|r13)\b',args) or op in ('bl','blx') for op,args in loop), 'Pair-loop stack traffic or call'
 assert sum(op=='str' for op,args in loop)==2, 'Missing packed framebuffer/depth stores'
 assert sum(op=='strgth' for op,args in loop)==4, 'Missing mixed-result halfword stores'
-print('PASS: pair kernel loads Z early, uses packed/mixed stores, and has no loop stack traffic/calls.')
+assert sum(op=='strgth' for op,args in ops[end:])==2, 'Missing native odd-tail stores'
+print('PASS: pair kernel loads Z early, packed/mixed stores, no loop stack/calls, native odd tail.')
 
 ui = subprocess.check_output([str(nm), str(objects / 'SYMBIAN.o')], text=True, errors='replace')
 for symbol in ('EventReady__10RWsSessionP14TRequestStatus', 'GetEvent__10RWsSessionR8TWsEvent',

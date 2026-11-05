@@ -1,4 +1,4 @@
-// ARMv4T, EKA1 GCC 2.9. C ABI; word-aligned buffers and pairs > 0.
+// ARMv4T, EKA1 GCC 2.9. C ABI; word-aligned buffers and pixel count >= 2.
 // Save callee registers once; no stack accesses or calls inside the pair loop.
 extern "C" void SkyDrawPairsArm(Pixel*,Pixel*,int,int,int,int,unsigned);
 __asm__(
@@ -10,6 +10,8 @@ __asm__(
     "ldr r4, [sp, #32]\n\t"
     "ldr r5, [sp, #36]\n\t"
     "ldr r6, [sp, #40]\n\t"
+    "and lr, r2, #1\n\t"
+    "mov r2, r2, lsr #1\n\t"
     "1:\n\t"
     "ldrh r7, [r1]\n\t"
     "ldrh r8, [r1, #2]\n\t"
@@ -40,6 +42,16 @@ __asm__(
     "add r1, r1, #4\n\t"
     "subs r2, r2, #1\n\t"
     "bne 1b\n\t"
+    // r0/r1 already point at the tail and r3 holds its interpolated depth.
+    "tst lr, #1\n\t"
+    "beq 4f\n\t"
+    "ldrh r7, [r1]\n\t"
+    "mov r9, r3, asr #8\n\t"
+    "add r9, r9, r5\n\t"
+    "cmp r9, r7\n\t"
+    "strgth r9, [r1]\n\t"
+    "strgth r6, [r0]\n\t"
+    "4:\n\t"
     "ldmfd sp!, {r4-r10, lr}\n\t"
     "bx lr\n\t"
 );

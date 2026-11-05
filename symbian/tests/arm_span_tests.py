@@ -45,7 +45,7 @@ rng=random.Random(6600)
 for sample in range(10000):
     full_span=sample>=5000
     case=sample%5000
-    count=case%209 if full_span else 2*(1+case%104)
+    count=case%209 if full_span else 2+case%207
     output_offset=8+(case&1) if full_span else 8
     depth_offset=8+((case>>1)&1) if full_span else 8
     z=rng.randrange(-20000000,20000000);dz=rng.randrange(-10000,10001);bias=rng.randrange(-1000,1001)
@@ -65,7 +65,7 @@ for sample in range(10000):
     uc.mem_write(0x300000,pack(pixels));uc.mem_write(0x302000,pack(depth))
     sp=0x208000
     uc.mem_write(sp,struct.pack('<iiI',dz,bias,color if full_span else color|(color<<16)))
-    for reg,value in [(UC_ARM_REG_R0,0x300000+output_offset*2),(UC_ARM_REG_R1,0x302000+depth_offset*2),(UC_ARM_REG_R2,count if full_span else count//2),(UC_ARM_REG_R3,z&0xffffffff),(UC_ARM_REG_SP,sp),(UC_ARM_REG_LR,stop)]:uc.reg_write(reg,value)
+    for reg,value in [(UC_ARM_REG_R0,0x300000+output_offset*2),(UC_ARM_REG_R1,0x302000+depth_offset*2),(UC_ARM_REG_R2,count),(UC_ARM_REG_R3,z&0xffffffff),(UC_ARM_REG_SP,sp),(UC_ARM_REG_LR,stop)]:uc.reg_write(reg,value)
     saved=[0x66000000+i for i in range(8)]
     for reg,value in zip(registers,saved):uc.reg_write(reg,value)
     uc.emu_start(base+int((wrapper if full_span else match).group(1),16),stop,count=20000)
@@ -74,4 +74,4 @@ for sample in range(10000):
     assert [uc.reg_read(r) for r in registers]==saved, 'Callee-saved registers changed'
     assert uc.mem_read(0x300000,512)==pack(expected_pixels), 'Framebuffer/guard mismatch: '+str(sample)
     assert uc.mem_read(0x302000,512)==pack(expected_depth), 'Depth/guard mismatch: '+str(sample)
-print('PASS: SDK ARM machine code, 5000 pair-kernel + 5000 full-span cases, Z masks/alignment/tails/guards and callee-saved ABI.')
+print('PASS: SDK ARM machine code, 5000 aligned kernel (even/odd counts) + 5000 full-span cases, Z masks/alignment/tails/guards and callee-saved ABI.')
