@@ -54,8 +54,37 @@ void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int dest
     }
 }
 static inline int RawMul(int a,int b){return Fix::Narrow(((Wide)a*b)>>16);}
-static inline int RawAdd(int a,int b){return Fix::Narrow((Wide)a+b);}
-static inline int RawSub(int a,int b){return Fix::Narrow((Wide)a-b);}
+// Exact signed saturation with 32-bit arithmetic; no wide carry/borrow chain.
+static inline int RawAdd(int a,int b){
+#if defined(__MARM__) && defined(__GCC32__)
+    int result;
+    __asm__("adds %0, %1, %2\n\t"
+            "movvs %0, %0, asr #31\n\t"
+            "eorvs %0, %0, #0x80000000"
+            : "=r"(result) : "r"(a),"r"(b) : "cc");
+    return result;
+#else
+    unsigned result=(unsigned)a+(unsigned)b;
+    if((((unsigned)a^result)&((unsigned)b^result)&0x80000000u)!=0)
+        return a<0?(-2147483647-1):2147483647;
+    return (int)result;
+#endif
+}
+static inline int RawSub(int a,int b){
+#if defined(__MARM__) && defined(__GCC32__)
+    int result;
+    __asm__("subs %0, %1, %2\n\t"
+            "movvs %0, %0, asr #31\n\t"
+            "eorvs %0, %0, #0x80000000"
+            : "=r"(result) : "r"(a),"r"(b) : "cc");
+    return result;
+#else
+    unsigned result=(unsigned)a-(unsigned)b;
+    if((((unsigned)a^(unsigned)b)&((unsigned)a^result)&0x80000000u)!=0)
+        return a<0?(-2147483647-1):2147483647;
+    return (int)result;
+#endif
+}
 static inline Vec V(Fix x,Fix y,Fix z){Vec v;v.x=x.raw;v.y=y.raw;v.z=z.raw;return v;}
 static inline Vec Add(const Vec& a,const Vec& b){Vec v;v.x=RawAdd(a.x,b.x);v.y=RawAdd(a.y,b.y);v.z=RawAdd(a.z,b.z);return v;}
 static inline Vec Sub(const Vec& a,const Vec& b){Vec v;v.x=RawSub(a.x,b.x);v.y=RawSub(a.y,b.y);v.z=RawSub(a.z,b.z);return v;}

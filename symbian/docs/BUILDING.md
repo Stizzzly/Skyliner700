@@ -54,6 +54,7 @@ Optional native instruction checks require Python's `unicorn` package:
 ```powershell
 python tests/arm_span_tests.py C:\S60SDK PATH_TO_SOFT3D.o
 python tests/arm_scale_tests.py C:\S60SDK PATH_TO_SOFT3D.o
+python tests/arm_raw_tests.py C:\S60SDK PATH_TO_SOFT3D.o
 ```
 
 Unicorn checks results and ABI, not ARM920T cycle timing. The object directory

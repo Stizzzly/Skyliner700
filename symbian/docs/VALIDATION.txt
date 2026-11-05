@@ -1,12 +1,13 @@
-Version 0.1.34: paired 32-bit sky fill
-ClearSky: 4576 STR on normal aligned buffer instead of 9152 STRH
-Same byte volume; row pointer advanced by stride, no row multiply
-Unaligned rows/odd strides supported via halfword fallback
-20 stride/alignment/guard sky-fill cases: PASS
+Version 0.1.35: exact 32-bit saturating RawAdd/RawSub
+ARM: ADDS/SUBS + MOVVS + EORVS; no 64-bit carry/borrow chain
+Portable path uses unsigned arithmetic; no signed-overflow undefined behavior
+RawMul retains wide fixed-point products; saturation results unchanged
+1000000 random add/sub pairs and signed boundary cases: PASS
+20162 actual native ARM instruction results vs wide reference: PASS
 80 camera poses: checksum 86c26771 unchanged
 Full preview/math/physics/menu/framebuffer/clipping/quad regressions: PASS
 Native SDK build and ARM32/no-FP/divide/span audits: PASS
-Native disassembly confirms packed STR path and no ClearSky multiplication
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.34 device FPS measurement pending
-SHA256 SIS: 9fece6bf6497798cd21036adc75d919a837186549a5b6b83628daff745613669
+New measured 0.1.34 baseline: 43 FPS on ground (user report)
+0.1.35 device FPS measurement pending
+SHA256 SIS: 6ea4f500f4785e28e73ea7e396e13bbbab9fba0c9901bcb8262c429da3c4fb44

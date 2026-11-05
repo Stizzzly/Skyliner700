@@ -71,7 +71,23 @@ static void CheckSkyFill(){
     }
     puts("PASS: 20 sky fills, aligned/halfword-offset buffers, odd/even strides and complete guards.");
 }
+static void CheckRawArithmetic(){
+    const int values[]={(-2147483647-1),-2147483647,-131072,-1,0,1,131072,2147483646,2147483647};
+    for(unsigned i=0;i<sizeof(values)/sizeof(values[0]);++i)
+        for(unsigned j=0;j<sizeof(values)/sizeof(values[0]);++j){
+            int a=values[i],b=values[j];
+            if(RawAdd(a,b)!=Fix::Narrow((Wide)a+b)||RawSub(a,b)!=Fix::Narrow((Wide)a-b)){fprintf(stderr,"Raw arithmetic boundary mismatch\n");exit(1);}
+        }
+    unsigned seed=920;
+    for(int sample=0;sample<1000000;++sample){
+        seed=seed*1664525u+1013904223u;int a=(int)seed;
+        seed=seed*1664525u+1013904223u;int b=(int)seed;
+        if(RawAdd(a,b)!=Fix::Narrow((Wide)a+b)||RawSub(a,b)!=Fix::Narrow((Wide)a-b)){fprintf(stderr,"Raw arithmetic mismatch\n");exit(1);}
+    }
+    puts("PASS: 1000000 exact 32-bit saturating add/sub pairs and signed boundary cases.");
+}
 int main(){
+    CheckRawArithmetic();
     CheckSkyFill();
     CheckSpanPairs();
     const int speedInputs[]={0,1,-1,2147483647,(-2147483647-1),5898240,-5898240};

@@ -218,7 +218,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.34"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.35"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
