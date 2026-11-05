@@ -24,7 +24,8 @@ private:
     int depthBias;
     Vec eye,right,up,forward;
     Vec View(const Vec& p) const;
-    void Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color);
+    unsigned Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color);
+    unsigned RunwayMarkingsOutside(unsigned mask) const;
     void DrawCachedTriangle(const Vec* view,const Screen* screen,const unsigned char* codes,int a,int b,int c,Pixel color);
     void ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
     void ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color,unsigned clipMask);

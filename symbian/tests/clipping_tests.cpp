@@ -96,4 +96,29 @@ int main(){
         if(memcmp(pixels,expected,sizeof(pixels))||memcmp(renderer.depth,expectedDepth,sizeof(expectedDepth))){fprintf(stderr,"Quad mismatch %d\n",sample);return 1;}
     }
     puts("PASS: 1000 cached quads match reference color/Z and projection counts; full/mixed/clipped/rejected paths, bias 0/2/4.");
+    int culledRunways=0;
+    for(int sample=0;sample<10000;++sample){
+        seed=seed*1664525u+1013904223u;Fix yaw=Fix::Raw((int)(seed%411775));
+        Fix sy=FxSin(yaw),cy=FxCos(yaw);
+        seed=seed*1664525u+1013904223u;int x=(int)(seed%2401)-1200;
+        seed=seed*1664525u+1013904223u;int z=(int)(seed%2401)-1200;
+        seed=seed*1664525u+1013904223u;int y=(int)(seed%601)-20;
+        renderer.eye=V(x,y,z);renderer.right=V(cy,0,sy);
+        renderer.forward=V(sy*Fix::Raw(64583),-Fix::Raw(11135),-cy*Fix::Raw(64583));
+        renderer.up=Cross(renderer.right,renderer.forward);
+        unsigned runwayReject=31;
+        for(int zz=-300;zz<=300;zz+=600)for(int xx=-15;xx<=15;xx+=30)
+            runwayReject&=ReferenceOutcode(renderer.View(V(xx,Fix::Raw(3604),zz)));
+        if(!runwayReject)continue;
+        unsigned mask=renderer.RunwayMarkingsOutside(runwayReject);
+        if(!mask)continue;
+        ++culledRunways;
+        for(int mark=-280;mark<300;mark+=40)for(int end=0;end<=18;end+=18)for(int side=-1;side<=1;side+=2){
+            Vec v=renderer.View(V(Fix::Raw(side*32768),Fix::Raw(5243),mark+end));
+            if((ReferenceOutcode(v)&mask)!=mask){fprintf(stderr,"False marking reject %d\n",sample);return 1;}
+        }
+    }
+    if(culledRunways<100){fprintf(stderr,"Insufficient marking cull coverage\n");return 1;}
+    printf("PASS: 10000 runway poses; %d group rejects confirmed against every marking vertex at its true height.\n",culledRunways);
+
 }

@@ -205,10 +205,11 @@ void Soft3D::DrawCachedTriangle(const Vec* view,const Screen* screen,const unsig
     if(!mask)RasterScreen(screen[a],screen[b],screen[c],color);
     else ClipIntersectingTriangle(view[a],view[b],view[c],color,mask);
 }
-void Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color){
+unsigned Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color){
     Vec view[4];view[0]=View(a);view[1]=View(b);view[2]=View(c);view[3]=View(d);
     unsigned c0=Outcode(view[0]),c1=Outcode(view[1]),c2=Outcode(view[2]),c3=Outcode(view[3]);
-    if(c0&c1&c2&c3)return;
+    unsigned reject=c0&c1&c2&c3;
+    if(reject)return reject;
     unsigned m0=c0|c1|c2,m1=c0|c2|c3;
     Screen screen[4];
     // Only accepted triangles consume the projected cache; clipped ones project later.
@@ -225,6 +226,19 @@ void Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel colo
         if(!m1)RasterScreen(screen[0],screen[2],screen[3],color);
         else ClipIntersectingTriangle(view[0],view[2],view[3],color,m1);
     }
+    return 0;
+}
+unsigned Soft3D::RunwayMarkingsOutside(unsigned mask) const{
+    // Markings are higher than the asphalt. Confirm the candidate planes at
+    // their height; the expanded footprint encloses every marking quad.
+    // 16 raw units conservatively cover fixed-point rounding at the boundary.
+    for(int z=-300;z<=300;z+=600)for(int x=-15;x<=15;x+=30){
+        Vec v=View(V((Fix)x,Fix::Raw(5243),(Fix)z));
+        for(int plane=0;plane<5;++plane)
+            if((mask&(1u<<plane))&&Distance(v,plane)>=-16)mask&=~(1u<<plane);
+        if(!mask)return 0;
+    }
+    return mask;
 }
 static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);}
 // Horizontal span: coverage has already been resolved once for the whole row.
@@ -385,10 +399,12 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     }
     // Polygon offset prevents coplanar runway/ground quantization fighting.
     depthBias=2;
-    Quad(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),V(-15,Fix::Raw(3604),300),RGB(62,66,70));
-    depthBias=4;
-    for(int mark=-280;mark<300;mark+=40){
-        Quad(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
+    unsigned runwayReject=Quad(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),V(-15,Fix::Raw(3604),300),RGB(62,66,70));
+    if(!runwayReject||!RunwayMarkingsOutside(runwayReject)){
+        depthBias=4;
+        for(int mark=-280;mark<300;mark+=40){
+            Quad(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
+        }
     }
     depthBias=0;
     Fix sp=(Fix)FxSin(s.pitch),cp=(Fix)FxCos(s.pitch),sr=(Fix)FxSin(s.roll),cr=(Fix)FxCos(s.roll);
