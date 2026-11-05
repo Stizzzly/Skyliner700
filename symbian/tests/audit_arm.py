@@ -37,8 +37,8 @@ assert not re.search(r'ARM_26\s+__(?:u?div|u?mod|lshrdi)', project.group(1)), 'P
 print('PASS: native Project has no division, modulo or variable 64-bit shift helper calls.')
 
 soft_symbols = subprocess.check_output([str(nm), '-u', str(objects / 'SOFT3D.o')], text=True, errors='replace')
-assert not re.search(r'\b__u?divsi3\b', soft_symbols), '32-bit division helper remains in renderer'
-print('PASS: renderer has no 32-bit division helper; edge bounds use cached reciprocals.')
+assert not re.search(r'\b__(?:u?divsi3|u?modsi3)\b', soft_symbols), '32-bit division/modulo helper remains in renderer'
+print('PASS: renderer has no 32-bit division/modulo helper; clipping has no variable modulo.')
 
 raster = re.search(r'<RasterScreen__6Soft3DRC6ScreenN21Us>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
 assert raster, 'Missing RasterScreen function; inspect compiler inlining before updating audit'

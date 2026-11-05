@@ -88,19 +88,24 @@ void Soft3D::ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     unsigned ca=Outcode(a),cb=Outcode(b),cc=Outcode(c);
     if(ca&cb&cc)return;
     if(!(ca|cb|cc)){Raster(a,b,c,color);return;}
-    ClipIntersectingTriangle(a,b,c,color);
+    ClipIntersectingTriangle(a,b,c,color,ca|cb|cc);
 }
 // Both callers have already classified the triangle against all five planes.
-void Soft3D::ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
+void Soft3D::ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color,unsigned clipMask) {
     Vec p[12],q[12]; int count=3;
     p[0]=a;p[1]=b;p[2]=c;
     for(int plane=0;plane<5;++plane) {
+        if(!(clipMask&(1u<<plane)))continue;
         int n=0;
+        Vec s=p[0];Fix ds=Distance(s,plane),firstDistance=ds;
+        // Keep the original first edge and fan anchor: no cyclic vertex rotation.
         for(int i=0;i<count;++i) {
-            Vec s=p[i],e=p[(i+1)%count];
-            Fix ds=Distance(s,plane),de=Distance(e,plane);
+            int next=i+1;bool closing=next==count;
+            Vec e=p[closing?0:next];
+            Fix de=closing?firstDistance:Distance(e,plane);
             if(ds>=0) q[n++]=s;
             if((ds<0)!=(de<0)) q[n++]=Add(s,Mul(Sub(e,s),ds/(ds-de)));
+            s=e;ds=de;
         }
         count=n; if(count<3)return;
         for(int j=0;j<count;++j)p[j]=q[j];
@@ -262,11 +267,11 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
         if(ca&cb&cc){}
         else if(!(ca|cb|cc))
             RasterScreen(terrainScreen[base],terrainScreen[base+1],terrainScreen[base+10],col);
-        else ClipIntersectingTriangle(terrainView[base],terrainView[base+1],terrainView[base+10],col);
+        else ClipIntersectingTriangle(terrainView[base],terrainView[base+1],terrainView[base+10],col,ca|cb|cc);
         if(ca&cc&cd){}
         else if(!(ca|cc|cd))
             RasterScreen(terrainScreen[base],terrainScreen[base+10],terrainScreen[base+9],col);
-        else ClipIntersectingTriangle(terrainView[base],terrainView[base+10],terrainView[base+9],col);
+        else ClipIntersectingTriangle(terrainView[base],terrainView[base+10],terrainView[base+9],col,ca|cc|cd);
     }
     // Polygon offset prevents coplanar runway/ground quantization fighting.
     depthBias=2;

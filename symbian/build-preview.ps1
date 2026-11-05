@@ -32,6 +32,10 @@ try {
         if($LASTEXITCODE -ne 0 -or $original -ne $normal){throw 'Optimized renderer differs from unchanged 0.1.7 baseline'}
     } finally { Pop-Location }
     Write-Output 'PASS: unchanged 0.1.7 renderer and optimized renderer match across all 80 frames.'
+    & $Compiler @baseline tests/clipping_tests.cpp -o tests/clipping-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Clipping test build failed'}
+    & ./tests/clipping-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Clipping differential checks failed'}
     & $Compiler @baseline tests/projection_tests.cpp -o tests/projection-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Projection test build failed'}
     & ./tests/projection-tests.exe
