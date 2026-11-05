@@ -1,51 +1,7 @@
-# Native build notes
+# Historical implementation notes
 
-Built on Windows with the original S60 SDK 2.0, target ARMI UREL.
-
-## Tool sources
-
-- Nokia SDK archive: https://archive.org/download/nokia_sdks_n_dev_tools/s60_sdk_v2_0.zip
-  SHA256: `e69e7cb278d805b6c9da0c7fc7588d3157296f5ccfb64e744bf57f446e0254bc`
-- Windows Perl: https://archive.org/download/nokia_sdks_n_dev_tools/ActivePerl-5.6.1.635-MSWin32-x86.msi
-  SHA256: `c107b8025fb7f94d3e23d7460f33fe4a036adbd643ff6f24d1b27cf759ddb8a2`
-- Cygwin runtime: https://mirrors.kernel.org/sourceware/cygwin-archive/20221123/x86/release/cygwin/cygwin-3.3.6-1.tar.xz
-  SHA256: `cb39b20f4bffa59efd7df2f718d53b76c811bd83f52038592c81c1538a845798`
-- CAB extraction: https://github.com/twogood/unshield (tested 1.6.2).
-
-The SDK installer CABs were extracted with unshield rather than installed.
-The extracted `Epoc32` directory contains the headers, libraries and tools.
-ActivePerl was also extracted locally, mapping MSI File/Component/Directory
-tables to their original filenames; no machine-wide installation was used.
-
-## Modern Windows compatibility fixes
-
-1. The original `epoc32/gcc/bin/cygwin1.dll` crashed with access violation.
-   Save that file, then replace it **inside this SDK copy only** with the
-   x86 `usr/bin/cygwin1.dll` from the package linked above.
-2. With the newer Cygwin runtime, normalize CRLF to LF in SDK `include`
-   files (`.h`, `.rh`, `.hrh`, `.inl`) and the two GCC `specs` files beneath
-   `epoc32/gcc/lib/gcc-lib`. Otherwise old CPP fails to join continued macros,
-   or the assembler tries to open a carriage-return filename.
-3. Use Windows Perl, not MSYS Perl. Put its `bin` in PATH before the SDK tools.
-4. Run `build-s60.ps1` with the SDK root. It sets EPOCROOT and tool paths,
-   invokes `bldmake bldfiles`, `abld build armi urel`, and `makesis`.
-5. Keep the generated `.pkg` in CRLF. The old makesis silently created a
-   100-byte empty package when the comment and records were LF-only.
-
-## Validation
-
-Petran identifies the output as an ARM EPOC DLL with UIDs
-`10000079 100039ce 0f700660`, one export, and zero writable data/BSS.
-The current package has three compressed payloads: `.app`, `.rsc` and `.aif`. All were
-decompressed and compared byte for byte with the SDK build outputs.
-
-The portable renderer/core compiled under C++98 with MinGW. Tests cover
-framebuffer stride/guard integrity across 80 camera poses and takeoff.
-The upstream physics regression suite also passes against the adapted core.
-These checks validate the build and desktop behavior. Separately, the author reported approximately 30 FPS in flight on a Nokia 6600 after the 0.1.8 optimizations.
-
-Development UID `0x0F700660` is for private testing; obtain an appropriate UID
-before a public release.
+These notes describe the named versions, including experiments later reverted.
+See [README](../README.md) for the current implementation.
 
 ## Version 0.1.4 integer rewrite
 
