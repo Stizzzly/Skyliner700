@@ -14,6 +14,16 @@ static inline unsigned ReadPixel(const Pixel* p){
     return *p;
 #endif
 }
+// Only used on a word-aligned source; preserve alias safety on the desktop.
+static inline unsigned ReadPair(const Pixel* p){
+#if defined(__MARM__) && defined(__GCC32__)
+    unsigned value;
+    __asm__("ldr %0, [%1]" : "=r"(value) : "r"(p), "m"(p[0]), "m"(p[1]));
+    return value;
+#else
+    unsigned value;memcpy(&value,p,sizeof(value));return value;
+#endif
+}
 static inline void WritePair(Pixel* p,unsigned value){
 #if defined(__MARM__) && defined(__GCC32__)
     __asm__ __volatile__("str %0, [%1]" : : "r"(value),"r"(p) : "memory");
@@ -27,7 +37,16 @@ void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int dest
     for(int y=0;y<SKY_H;++y){
         Pixel* first=destination+(y*2)*destinationStride;
         Pixel* second=first+destinationStride;
-        if(aligned){
+        const Pixel* row=source+y*sourceStride;
+        if(aligned&&((size_t)row&3)==0){
+            for(int x=0;x<SKY_W;x+=2){
+                unsigned pair=ReadPair(row+x);
+                unsigned low=(pair&65535u)|(pair<<16);
+                unsigned high=(pair>>16)|(pair&0xffff0000u);
+                WritePair(first+x*2,low);WritePair(second+x*2,low);
+                WritePair(first+x*2+2,high);WritePair(second+x*2+2,high);
+            }
+        }else if(aligned){
             for(int x=0;x<SKY_W;++x){unsigned p=ReadPixel(source+y*sourceStride+x);unsigned packed=p|(p<<16);WritePair(first+x*2,packed);WritePair(second+x*2,packed);}
         }else{
             for(int x=0;x<SKY_W;++x){Pixel p=(Pixel)ReadPixel(source+y*sourceStride+x);first[x*2]=p;first[x*2+1]=p;second[x*2]=p;second[x*2+1]=p;}

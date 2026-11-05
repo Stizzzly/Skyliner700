@@ -1,10 +1,12 @@
-Version 0.1.27: reuse terrain vertex outcodes
-Existing projected-vertex cache and trivial accept retained
-Trivial reject before passing camera vertices; intersecting triangles bypass repeated outcode classification
-No repeated per-triangle terrain Outcode calls
-Full-frame Z, direct framebuffer, uncapped frame loop retained; no tiles
+Version 0.1.28: paired source-word reads in SkyScale2x
+Existing write-both-rows path retained; framebuffer is never read by scaler
+Aligned source and destination: one LDR for two source pixels, four STR
+Unaligned source/destination and odd strides retain safe fallback paths
+Native Unicorn: 16 alignment/stride cases, pixels/guards/ABI: PASS
+Native Unicorn: zero framebuffer reads, 4576 source word loads on normal path: PASS
+Full-frame Z, direct framebuffer, uncapped loop, terrain outcode reuse retained; no tiles
 Native SDK build and ARM32/no-FP/divide/span audits: PASS
 Full preview/math/physics/menu/framebuffer regressions: PASS; 86c26771 unchanged
 Legacy SIS APP/RSC/AIF structure: PASS
-0.1.27 device FPS measurement pending
-SHA256 SIS: 64147bc2559d4b3746083a1ebdddea00c00c1f32353dc0027f5b0a440dd1f220
+0.1.28 device FPS measurement pending
+SHA256 SIS: 3579447ae2a589af17a0031391d3159cc93e4baab79e565586bf58edaec3e5db
