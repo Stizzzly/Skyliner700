@@ -1,9 +1,10 @@
-Version 0.1.26: revert tile renderer to 0.1.24
-User device result: 0.1.25 slower; explicitly rejected
-soft3d.cpp/h restored byte-for-byte from fa95a51 (0.1.24)
-Direct framebuffer, no BitBlt, uncapped manual frame loop retained
-Native SDK build, ARM32/no-FP/divide/span audits: PASS
+Version 0.1.27: reuse terrain vertex outcodes
+Existing projected-vertex cache and trivial accept retained
+Trivial reject before passing camera vertices; intersecting triangles bypass repeated outcode classification
+No repeated per-triangle terrain Outcode calls
+Full-frame Z, direct framebuffer, uncapped frame loop retained; no tiles
+Native SDK build and ARM32/no-FP/divide/span audits: PASS
 Full preview/math/physics/menu/framebuffer regressions: PASS; 86c26771 unchanged
-Legacy SIS APP/RSC/AIF and native payload identity: PASS
-0.1.24 measured 32-34 FPS; 0.1.26 device measurement pending
-SHA256 SIS: 4ad050a30fe4e1f625443a1a6981d1a34ffc95ebcc3ea5eb5fbdbc9a046aafbf
+Legacy SIS APP/RSC/AIF structure: PASS
+0.1.27 device FPS measurement pending
+SHA256 SIS: 64147bc2559d4b3746083a1ebdddea00c00c1f32353dc0027f5b0a440dd1f220

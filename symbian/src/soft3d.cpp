@@ -69,6 +69,10 @@ void Soft3D::ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     unsigned ca=Outcode(a),cb=Outcode(b),cc=Outcode(c);
     if(ca&cb&cc)return;
     if(!(ca|cb|cc)){Raster(a,b,c,color);return;}
+    ClipIntersectingTriangle(a,b,c,color);
+}
+// Both callers have already classified the triangle against all five planes.
+void Soft3D::ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     Vec p[12],q[12]; int count=3;
     p[0]=a;p[1]=b;p[2]=c;
     for(int plane=0;plane<5;++plane) {
@@ -231,14 +235,18 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     }
     for(int iz=-4;iz<4;++iz)for(int ix=-4;ix<4;++ix){
         int base=(iz+4)*9+ix+4;
-        Vec a=terrainView[base],b=terrainView[base+1],c=terrainView[base+10],d=terrainView[base+9];
+        unsigned ca=terrainCodes[base],cb=terrainCodes[base+1];
+        unsigned cc=terrainCodes[base+10],cd=terrainCodes[base+9];
         Pixel col=((ix+iz)&1)?RGB(71,112,53):RGB(79,123,60);
-        if(!(terrainCodes[base]|terrainCodes[base+1]|terrainCodes[base+10]))
+        // Reject before copying camera vertices; reuse the per-grid outcodes.
+        if(ca&cb&cc){}
+        else if(!(ca|cb|cc))
             RasterScreen(terrainScreen[base],terrainScreen[base+1],terrainScreen[base+10],col);
-        else ClipTriangle(a,b,c,col);
-        if(!(terrainCodes[base]|terrainCodes[base+10]|terrainCodes[base+9]))
+        else ClipIntersectingTriangle(terrainView[base],terrainView[base+1],terrainView[base+10],col);
+        if(ca&cc&cd){}
+        else if(!(ca|cc|cd))
             RasterScreen(terrainScreen[base],terrainScreen[base+10],terrainScreen[base+9],col);
-        else ClipTriangle(a,c,d,col);
+        else ClipIntersectingTriangle(terrainView[base],terrainView[base+10],terrainView[base+9],col);
     }
     // Polygon offset prevents coplanar runway/ground quantization fighting.
     depthBias=2;

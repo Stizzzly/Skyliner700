@@ -25,6 +25,7 @@ private:
     Vec eye,right,up,forward;
     Vec View(const Vec& p) const;
     void ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
+    void ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
     void Raster(const Vec& a,const Vec& b,const Vec& c,Pixel color);
     void RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel color);
 };
