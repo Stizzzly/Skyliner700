@@ -109,7 +109,7 @@ public:
         const RRegion* region=iDsa->DrawingRegion();
         if(!region||region->CheckError()||region->IsEmpty())return;
         const TBool menu=iMenu.Visible();
-        const Pixel* source=iPixels;TInt sourceStride=SKY_W;
+        const Pixel* source=iPixels;TInt sourceStride=iRenderer->Width();
         if(menu){
             iMenuBitmap->LockHeap(ETrue);source=(const Pixel*)iMenuBitmap->DataAddress();
             sourceStride=CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)>>1;
@@ -122,7 +122,7 @@ public:
             if(menu)SkyPresentRect(source,sourceStride,screen,iScreenStride,
                                   r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
             else{
-                SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
+                SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,iRenderer->HalfResolution());
                 SkyPaintHudRect(iHud,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
             }
         }
@@ -132,7 +132,7 @@ public:
     void BuildMenu(){
         if(!iMenuBitmap||!iMenu.Visible())return;
         iMenuBitmap->LockHeap(ETrue);
-        SkyDrawMenu((Pixel*)iMenuBitmap->DataAddress(),CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)/2,iMenu,iPixels,SKY_W);
+        SkyDrawMenu((Pixel*)iMenuBitmap->DataAddress(),CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)/2,iMenu,iPixels,iRenderer->Width());
         iMenuBitmap->UnlockHeap(ETrue);
     }
     void ApplyMenu(MenuState::Action action){
@@ -146,7 +146,7 @@ public:
         if(iMenu.Visible()){ApplyMenu(iMenu.Select());return;}
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
-    void ResetFlight(){FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
+    void ResetFlight(){iRenderer->SetHalfResolution(iMenu.halfResolution);FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
     TBool ContinuousFrames()const{return !iMapError&&!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused();}
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
@@ -181,7 +181,7 @@ public:
             while(iAccum>=20000){FlightModel_Step(&iFlight,&in,Fix::Raw(1311));iAccum-=20000;}
         }
         TTime renderStart;renderStart.UniversalTime();
-        iRenderer->Render(iPixels,SKY_W,iFlight.state);
+        iRenderer->Render(iPixels,iRenderer->Width(),iFlight.state);
         TTime renderEnd;renderEnd.UniversalTime();
         iRenderMs=renderEnd.MicroSecondsFrom(renderStart).Int64().GetTInt()/1000;
         TTime presentStart;presentStart.UniversalTime();
@@ -223,7 +223,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.41"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.42"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};

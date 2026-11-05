@@ -3,11 +3,12 @@
 #include "../src/soft3d.cpp"
 #include <stdio.h>
 #include <stdlib.h>
-static void CheckProjection(int x,int y,int z){
+static void CheckProjection(int x,int y,int z,bool half=false){
     if(DepthInverse(z)!=(unsigned)((1ULL<<40)/(unsigned)z)){fprintf(stderr,"Inverse mismatch: %d\n",z);exit(1);}
-    Vec v;v.x=x;v.y=y;v.z=z;Screen actual=Project(v);
-    int ex=SKY_W*8+(int)(((Wide)x*2000)/z);
-    int ey=SKY_H*8-(int)(((Wide)y*2000)/z);
+    Vec v;v.x=x;v.y=y;v.z=z;Screen actual=Project(v,half);
+    int focal=half?1000:2000;
+    int ex=(half?88:SKY_W)*8+(int)(((Wide)x*focal)/z);
+    int ey=(half?104:SKY_H)*8-(int)(((Wide)y*focal)/z);
     int ez=(int)((30000LL*65536)/z);
     if(actual.x!=ex||actual.y!=ey||actual.z!=ez){fprintf(stderr,"Projection mismatch: %d %d %d\n",x,y,z);exit(1);}
 }
@@ -156,7 +157,7 @@ int main(){
         seed=seed*1664525u+1013904223u;int x=(int)seed;
         seed=seed*1664525u+1013904223u;int y=(int)seed;
         seed=seed*1664525u+1013904223u;int z=131072+(int)((seed&0x7fffffffu)%2147352576u);
-        CheckProjection(x,y,z);
+        CheckProjection(x,y,z);CheckProjection(x,y,z,true);
     }
     puts("PASS: exact LUT/Newton division-free projection, boundary cases and 1,000,000 random vectors.");return 0;
 }

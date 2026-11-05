@@ -56,27 +56,28 @@ void SkyDrawMenu(Pixel* pixels,int stride,const MenuState& state,const Pixel* ba
     Pixel cyan=Color(80,184,230),gold=Color(255,231,122),regular=Color(220,239,250);
     for(int y=0;y<c.height;++y)for(int x=0;x<c.width;++x){
         Pixel p=Color(7,20+y/16,34+y/8);
-        if(background&&state.mode==MenuState::Paused)p=(Pixel)((background[y*backgroundStride+x]&0xE79C)>>2);
+        if(background&&state.mode==MenuState::Paused)p=(Pixel)((background[(state.halfResolution?y/2:y)*backgroundStride+(state.halfResolution?x/2:x)]&0xE79C)>>2);
         c.Point(x,y,p);
     }
     if(state.mode==MenuState::Main){
         c.Line(12,12,163,12,Color(29,78,102));c.Rect(12,12,30,2,cyan);
         c.Center(25,"SKYLINER",2,cyan);c.Center(46,"700",3,gold);
-        c.Line(38,91,138,91,Color(30,76,98));Plane(c,65,70,46);
+        c.Line(38,91,138,91,Color(30,76,98));Plane(c,68,63,40);
     }else{
         c.Center(23,"PAUSED",2,cyan);c.Center(45,"SKYLINER 700",1,regular);
         c.Line(46,64,130,64,Color(29,78,102));
     }
-    int top=state.mode==MenuState::Main?116:84;
-    int count=state.Count(),panelHeight=count*28+10;
+    int top=state.mode==MenuState::Main?104:84;
+    int spacing=state.mode==MenuState::Main?24:28;
+    int count=state.Count(),panelHeight=count*spacing+10;
     c.Rect(11,top-3,154,panelHeight+2,Color(30,78,100));
     c.Rect(12,top-2,152,panelHeight,Color(7,20,34));c.Rect(12,top-2,152,2,cyan);
-    const char* mainItems[2]={"START FLIGHT","EXIT GAME"};
+    const char* mainItems[3]={"START FLIGHT",state.halfResolution?"RES 88X104 X2":"RES 176X208","EXIT GAME"};
     const char* pauseItems[3]={"RESUME","RETURN MENU","EXIT GAME"};
-    for(int item=0;item<count;++item){int y=top+7+item*28;
+    for(int item=0;item<count;++item){int y=top+7+item*spacing;
         if(item==state.selection){c.Rect(18,y-3,140,22,Color(25,61,79));c.Rect(18,y-3,3,22,gold);}
         c.Center(y+3,state.mode==MenuState::Main?mainItems[item]:pauseItems[item],1,item==state.selection?gold:regular);
     }
-    c.Center(187,"UP DOWN  5 SELECT",1,Color(123,165,184));
+    c.Center(187,state.mode==MenuState::Main&&state.selection==1?"5 CHANGE RES":"UP DOWN  5 SELECT",1,Color(123,165,184));
     c.Text(9,200,"SELECT",1,regular);c.Text(144,200,"EXIT",1,regular);
 }

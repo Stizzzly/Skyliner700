@@ -76,20 +76,20 @@ static inline Vec Mul(const Vec& a,Fix scale){Vec v;v.x=RawMul(a.x,scale.raw);v.
 static inline Fix Dot(const Vec& a,const Vec& b){return Fix::Raw(RawAdd(RawAdd(RawMul(a.x,b.x),RawMul(a.y,b.y)),RawMul(a.z,b.z)));}
 static inline Vec Cross(const Vec& a,const Vec& b){Vec v;v.x=RawSub(RawMul(a.y,b.z),RawMul(a.z,b.y));v.y=RawSub(RawMul(a.z,b.x),RawMul(a.x,b.z));v.z=RawSub(RawMul(a.x,b.y),RawMul(a.y,b.x));return v;}
 static Pixel RGB(int r,int g,int b) { return (Pixel)(((r>>3)<<11)|((g>>2)<<5)|(b>>3)); }
-static void ClearSky(Pixel* destination,int stride){
+static void ClearSky(Pixel* destination,int stride,int width=SKY_W,int height=SKY_H){
     const Pixel sky=RGB(90,155,205);
     const unsigned packed=(unsigned)sky|((unsigned)sky<<16);
     Pixel* row=destination;
-    for(int y=0;y<SKY_H;++y,row+=stride){
+    for(int y=0;y<height;++y,row+=stride){
         // Check per row so odd strides and halfword-aligned buffers remain valid.
         if(((size_t)row&3)==0){
-            for(int x=0;x<SKY_W;x+=2)WritePair(row+x,packed);
+            for(int x=0;x<width;x+=2)WritePair(row+x,packed);
         }else{
-            for(int x=0;x<SKY_W;++x)row[x]=sky;
+            for(int x=0;x<width;++x)row[x]=sky;
         }
     }
 }
-Soft3D::Soft3D():terrainX(0x7fffffff),terrainZ(0x7fffffff),target(0),pitch(SKY_W),depthBias(0) {}
+Soft3D::Soft3D():terrainX(0x7fffffff),terrainZ(0x7fffffff),halfResolution(false),width(SKY_W),height(SKY_H),target(0),pitch(SKY_W),depthBias(0) {}
 Vec Soft3D::View(const Vec& p) const { Vec relative=Sub(p,eye); return V(Dot(relative,right),Dot(relative,up),Dot(relative,forward)); }
 /* Near and side planes keep perspective divisions bounded, including when
    terrain crosses the eye. Focal length 125; screen centre (88,104). */
@@ -161,13 +161,14 @@ static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse)
 #ifdef SKY_TEST_PROJECT_COUNTS
 static unsigned projectCalls=0;
 #endif
-static Screen Project(const Vec& v){
+static Screen Project(const Vec& v,bool half=false){
 #ifdef SKY_TEST_PROJECT_COUNTS
     ++projectCalls;
 #endif
     UWide inverse=DepthInverse(v.z);
-    Screen s;s.x=SKY_W*8+ReciprocalDivide((Wide)v.x*2000,v.z,inverse);
-    s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*2000,v.z,inverse);
+    int focal=half?1000:2000;
+    Screen s;s.x=(half?88:176)*8+ReciprocalDivide((Wide)v.x*focal,v.z,inverse);
+    s.y=(half?104:208)*8-ReciprocalDivide((Wide)v.y*focal,v.z,inverse);
     s.z=ReciprocalDivide(30000LL*65536,v.z,inverse);return s;
 }
 // Shared classification/projection for vertices referenced by several triangles.
@@ -187,9 +188,9 @@ unsigned Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel 
     Screen screen[4];
     // Only accepted triangles consume the projected cache; clipped ones project later.
     if(!m0||!m1){
-        screen[0]=Project(view[0]);screen[2]=Project(view[2]);
-        if(!m0)screen[1]=Project(view[1]);
-        if(!m1)screen[3]=Project(view[3]);
+        screen[0]=Project(view[0],halfResolution);screen[2]=Project(view[2],halfResolution);
+        if(!m0)screen[1]=Project(view[1],halfResolution);
+        if(!m1)screen[3]=Project(view[3],halfResolution);
     }
     if(!(c0&c1&c2)){
         if(!m0)RasterScreen(screen[0],screen[1],screen[2],color);
@@ -261,7 +262,7 @@ static void DrawSpan(Pixel* dst,Pixel* zbuf,int count,int z,int dz,Pixel color){
 }
 #endif
 void Soft3D::Raster(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
-    Screen aScreen=Project(a),bScreen=Project(b),cScreen=Project(c);
+    Screen aScreen=Project(a,halfResolution),bScreen=Project(b,halfResolution),cScreen=Project(c,halfResolution);
     RasterScreen(aScreen,bScreen,cScreen,color);
 }
 void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel color){
@@ -275,9 +276,9 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     for(int i=1;i<3;++i){if(s[i].x<minx)minx=s[i].x;if(s[i].x>maxx)maxx=s[i].x;if(s[i].y<miny)miny=s[i].y;if(s[i].y>maxy)maxy=s[i].y;}
     minx=minx/16;maxx=(maxx+15)/16;miny=miny/16;maxy=(maxy+15)/16;
     if(minx<0)minx=0;
-    if(maxx>=SKY_W)maxx=SKY_W-1;
+    if(maxx>=width)maxx=width-1;
     if(miny<0)miny=0;
-    if(maxy>=SKY_H)maxy=SKY_H-1;
+    if(maxy>=height)maxy=height-1;
     if(minx>maxx||miny>maxy)return;
     int row[3],dx[3],dy[3];
     const int sampleX=minx*16+8,sampleY=miny*16+8;
@@ -301,14 +302,14 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     }
     // Keep base-of-row pointers so the final increment is at most one-past-end.
     Pixel* dstRow=target+miny*pitch;
-    Pixel* zRow=depth+miny*SKY_W;
+    Pixel* zRow=depth+miny*width;
 #endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
         // Desktop-only exact coverage oracle for the span implementation.
         int w0=row[0],w1=row[1],w2=row[2],z=rowz;
         for(int x=minx;x<=maxx;++x){
-            if(w0>=0&&w1>=0&&w2>=0){int d=(z>>8)+depthBias;int index=y*SKY_W+x;
+            if(w0>=0&&w1>=0&&w2>=0){int d=(z>>8)+depthBias;int index=y*width+x;
                 if(d>depth[index]){depth[index]=(Pixel)d;target[y*pitch+x]=color;}}
             w0+=dx[0];w1+=dx[1];w2+=dx[2];z+=dzx;
         }
@@ -324,7 +325,7 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             int start=minx+first;
             DrawSpan(dstRow+start,zRow+start,last-first+1,rowz+dzx*first,dzx,color);
         }
-        dstRow+=pitch;zRow+=SKY_W;
+        dstRow+=pitch;zRow+=width;
 #endif
         row[0]+=dy[0];row[1]+=dy[1];row[2]+=dy[2];
         rowz+=dzy;
@@ -332,8 +333,8 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
 }
 void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     target=pixels;pitch=stride;depthBias=0;
-    memset(depth,0,sizeof(depth));
-    ClearSky(target,pitch);
+    memset(depth,0,width*height*sizeof(Pixel));
+    ClearSky(target,pitch,width,height);
     Fix sy=(Fix)FxSin(s.yaw),cy=(Fix)FxCos(s.yaw);
     eye=V(s.x-sy*17,s.y+6,s.z+cy*17);
     // Chase offset is constant (29 horizontal, -5 vertical). Normalize offline.
@@ -353,7 +354,7 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     for(int vertex=0;vertex<81;++vertex){
         terrainView[vertex]=View(terrain[vertex]);
         terrainCodes[vertex]=(unsigned char)Outcode(terrainView[vertex]);
-        if(terrainCodes[vertex]==0)terrainScreen[vertex]=Project(terrainView[vertex]);
+        if(terrainCodes[vertex]==0)terrainScreen[vertex]=Project(terrainView[vertex],halfResolution);
     }
     for(int iz=-4;iz<4;++iz)for(int ix=-4;ix<4;++ix){
         int base=(iz+4)*9+ix+4;
@@ -389,7 +390,7 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
         Fix yy=y*cp-pz*sp,zz=y*sp+pz*cp;
         view[i]=View(V(s.x+x*cy-zz*sy,s.y+yy,s.z+x*sy+zz*cy));
         codes[i]=(unsigned char)Outcode(view[i]);
-        if(!codes[i])screen[i]=Project(view[i]);
+        if(!codes[i])screen[i]=Project(view[i],halfResolution);
     }
     for(int i=0;i<PLANE_COUNT;i+=3)
         DrawCachedTriangle(view,screen,codes,planeIndices[i],planeIndices[i+1],planeIndices[i+2],i<48?RGB(205,211,218):RGB(211,66,42));

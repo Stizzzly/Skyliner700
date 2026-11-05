@@ -13,6 +13,11 @@ int main(){
     menu.Select();menu.Pause();menu.selection=1;
     FlightModel flight;FlightModel_Reset(&flight);Soft3D renderer;renderer.Render(scene,SKY_W,flight.state);
     SkyDrawMenu(canvas,SKY_DISPLAY_W,menu,scene,SKY_W);Save("pause-menu.ppm",176,208);
+    menu.mode=MenuState::Main;menu.selection=1;menu.Select();
+    SkyDrawMenu(canvas,SKY_DISPLAY_W,menu,0,0);Save("main-menu-half.ppm",176,208);
+    menu.selection=0;menu.Select();menu.Pause();renderer.SetHalfResolution(true);
+    renderer.Render(scene,renderer.Width(),flight.state);
+    SkyDrawMenu(canvas,SKY_DISPLAY_W,menu,scene,renderer.Width());Save("pause-menu-half.ppm",176,208);
     SkyDrawIcon(canvas,44,44,44);Save("icon44.ppm",44,44);
     SkyDrawIcon(canvas,42,42,29);Save("icon42.ppm",42,29);return 0;
 }

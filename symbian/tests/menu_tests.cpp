@@ -5,13 +5,20 @@ static void Check(bool ok,const char* s){if(!ok){fprintf(stderr,"FAIL: %s\n",s);
 static Pixel pixels[(SKY_DISPLAY_W+8)*SKY_DISPLAY_H+32];
 static Pixel background[SKY_W*SKY_H];
 int main(){
-    MenuState m;Check(m.Visible()&&m.mode==MenuState::Main&&m.Count()==2,"starts in main menu");
-    m.Move(-1);Check(m.selection==1&&m.Select()==MenuState::Exit,"main exit and wrap");
+    MenuState m;Check(m.Visible()&&m.mode==MenuState::Main&&m.Count()==3,"starts in main menu");
+    m.Move(1);Check(m.Select()==MenuState::Resolution&&m.Visible()&&m.halfResolution,"resolution changes only in main menu");
+    Check(m.Select()==MenuState::Resolution&&!m.halfResolution,"resolution toggles back to native");
+    m.Move(-1);
+    m.Move(-1);Check(m.selection==2&&m.Select()==MenuState::Exit,"main exit and wrap");
     m.Move(1);Check(m.Select()==MenuState::Start&&!m.Visible(),"start flight");
-    m.Pause();Check(m.Count()==3&&m.Select()==MenuState::Resume,"pause/resume");
+    m.Pause();Check(m.Count()==3&&m.Select()==MenuState::Resume&&!m.halfResolution,"pause/resume cannot change resolution");
     m.Pause();m.Move(1);Check(m.Select()==MenuState::Return&&m.mode==MenuState::Main,"return to main menu");
     m.Select();m.Pause();m.Move(-1);Check(m.Select()==MenuState::Exit,"pause exit");
-    for(int mode=0;mode<2;++mode){m.mode=mode?MenuState::Paused:MenuState::Main;
+    for(int half=0;half<2;++half)for(int choice=0;choice<3;++choice){
+        MenuState paused;paused.mode=MenuState::Paused;paused.halfResolution=half!=0;paused.selection=choice;
+        Check(paused.Select()!=MenuState::Resolution&&paused.halfResolution==(half!=0),"no resolution action in pause menu");
+    }
+    for(int half=0;half<2;++half)for(int mode=0;mode<2;++mode){m.halfResolution=half!=0;m.mode=mode?MenuState::Paused:MenuState::Main;
         for(int choice=0;choice<m.Count();++choice){m.selection=choice;
             for(unsigned i=0;i<sizeof(pixels)/sizeof(pixels[0]);++i)pixels[i]=0xA55A;
             SkyDrawMenu(pixels+16,SKY_DISPLAY_W+8,m,background,SKY_W);

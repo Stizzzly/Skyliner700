@@ -27,12 +27,12 @@ for path in paths:
     symbols = subprocess.check_output([str(nm), '-u', str(path)], text=True, errors='replace')
     division = [line.strip() for line in symbols.splitlines() if re.search(r'__(?:u?div|u?mod|aeabi_.*div)', line)]
     print(path.name + ': ARM32; integer division dependencies: ' + (', '.join(division) or 'none'))
-assert 'SkyScale2x' not in output and 'SkyScaleRows' not in output, 'Obsolete scene scaler remains in native objects'
-print('PASS: all seven objects use ARM32; no Thumb or obsolete scene scaler symbols.')
+assert 'SkyScale2x' not in output, 'Standalone legacy scaler remains; use clipped optional scale path'
+print('PASS: all seven objects use ARM32; no Thumb or standalone legacy scaler symbols.')
 
 assembly = subprocess.check_output([str(objdump), '-dr', str(objects / 'SOFT3D.o')], text=True, errors='replace')
 # Keep local .L labels inside the body; stop at the next named C++ function.
-project = re.search(r'<Project__FRC3Vec>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
+project = re.search(r'<Project__FRC3Vecb>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
 assert project, 'Missing native Project function; inspect compiler inlining before updating audit'
 assert not re.search(r'ARM_26\s+__(?:u?div|u?mod|lshrdi)', project.group(1)), 'Projection calls division/modulo/variable-wide-shift helper'
 print('PASS: native Project has no division, modulo or variable 64-bit shift helper calls.')

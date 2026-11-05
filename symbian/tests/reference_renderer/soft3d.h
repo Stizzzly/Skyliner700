@@ -7,6 +7,9 @@ struct Vec { Fix x,y,z; };
 class Soft3D {
 public:
     Soft3D();
+    int Width()const{return SKY_W;}
+    int Height()const{return SKY_H;}
+    void SetHalfResolution(bool){}
     void Render(Pixel* pixels, int stride, const FlightState& state);
     void Triangle(Vec a, Vec b, Vec c, Pixel color);
 private:

@@ -5,6 +5,10 @@ try {
     $command=Get-Command $Compiler -ErrorAction Stop
     $env:PATH=(Split-Path $command.Source)+";"+$env:PATH
     $common=@("-std=c++98","-O2","-Wall","-Wextra","-Wno-missing-field-initializers","-Wno-class-memaccess","-Isrc","-Iupstream","src/soft3d.cpp","src/physics.cpp","src/terrain.cpp","src/fixed.cpp","src/hud.cpp","-static")
+    & $Compiler @common tests/resolution_tests.cpp -o tests/resolution-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Resolution test build failed'}
+    & ./tests/resolution-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Resolution switch regression failed'}
     & $Compiler @common tests/hud_tests.cpp -o tests/hud-tests.exe
     if($LASTEXITCODE -ne 0){throw 'HUD test build failed'}
     & ./tests/hud-tests.exe

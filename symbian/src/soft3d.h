@@ -9,6 +9,10 @@ struct Screen { int x,y,z; };
 class Soft3D {
 public:
     Soft3D();
+    void SetHalfResolution(bool half){halfResolution=half;width=half?88:176;height=half?104:208;}
+    int Width()const{return width;}
+    int Height()const{return height;}
+    bool HalfResolution()const{return halfResolution;}
     void Render(Pixel* pixels, int stride, const FlightState& state);
     void Triangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
 private:
@@ -18,6 +22,7 @@ private:
     Screen terrainScreen[9*9];
     unsigned char terrainCodes[9*9];
     int terrainX,terrainZ;
+    bool halfResolution;int width,height;
     Pixel* target;
     int pitch;
     int depthBias;

@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "soft3d.h"
 #include "menu.h"
+#include "framebuffer.h"
 static Soft3D renderer;
 static FlightModel flight;
 static Pixel pixels[SKY_W*SKY_H];
@@ -13,7 +14,7 @@ static Pixel menuPixels[SKY_DISPLAY_W*SKY_DISPLAY_H];
 static bool Key(int k){return (GetAsyncKeyState(k)&0x8000)!=0;}
 static LRESULT CALLBACK Proc(HWND w,UINT msg,WPARAM a,LPARAM b){
     if(msg==WM_DESTROY){PostQuitMessage(0);return 0;}
-    if(msg==WM_KILLFOCUS){menu.Pause();paused=true;SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,SKY_W);InvalidateRect(w,0,FALSE);}
+    if(msg==WM_KILLFOCUS){menu.Pause();paused=true;SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,renderer.Width());InvalidateRect(w,0,FALSE);}
     if(msg==WM_KEYDOWN&&!(b&(1L<<30))){
         if(a==VK_ESCAPE||a==VK_F10){DestroyWindow(w);return 0;}
         if(menu.Visible()){
@@ -22,20 +23,21 @@ static LRESULT CALLBACK Proc(HWND w,UINT msg,WPARAM a,LPARAM b){
             if(a==VK_RETURN||a=='5'){
                 MenuState::Action action=menu.Select();
                 if(action==MenuState::Exit){DestroyWindow(w);return 0;}
-                if(action==MenuState::Start)FlightModel_Reset(&flight);
+                if(action==MenuState::Start){renderer.SetHalfResolution(menu.halfResolution);FlightModel_Reset(&flight);}
             }
-            paused=menu.Visible();SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,SKY_W);InvalidateRect(w,0,FALSE);return 0;
+            paused=menu.Visible();SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,renderer.Width());InvalidateRect(w,0,FALSE);return 0;
         }
-        if(a=='5'||a=='P'){menu.Pause();paused=true;SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,SKY_W);InvalidateRect(w,0,FALSE);}
+        if(a=='5'||a=='P'){menu.Pause();paused=true;SkyDrawMenu(menuPixels,SKY_DISPLAY_W,menu,pixels,renderer.Width());InvalidateRect(w,0,FALSE);}
         if(a=='0'||a=='R')FlightModel_Reset(&flight);
     }
     if(msg==WM_ERASEBKGND)return 1;
     if(msg==WM_PAINT){
         PAINTSTRUCT ps;HDC dc=BeginPaint(w,&ps);RECT rc;GetClientRect(w,&rc);
         struct {BITMAPINFOHEADER head;DWORD masks[3];} bi;
-        ZeroMemory(&bi,sizeof(bi));bi.head.biSize=sizeof(BITMAPINFOHEADER);bi.head.biWidth=menu.Visible()?SKY_DISPLAY_W:SKY_W;bi.head.biHeight=-(menu.Visible()?SKY_DISPLAY_H:SKY_H);bi.head.biPlanes=1;bi.head.biBitCount=16;bi.head.biCompression=BI_BITFIELDS;
+        ZeroMemory(&bi,sizeof(bi));bi.head.biSize=sizeof(BITMAPINFOHEADER);bi.head.biWidth=SKY_DISPLAY_W;bi.head.biHeight=-SKY_DISPLAY_H;bi.head.biPlanes=1;bi.head.biBitCount=16;bi.head.biCompression=BI_BITFIELDS;
         bi.masks[0]=0xf800;bi.masks[1]=0x07e0;bi.masks[2]=0x001f;
-        StretchDIBits(dc,0,0,rc.right,rc.bottom,0,0,bi.head.biWidth,-bi.head.biHeight,menu.Visible()?menuPixels:pixels,(BITMAPINFO*)&bi,DIB_RGB_COLORS,SRCCOPY);
+        if(!menu.Visible()){if(renderer.HalfResolution())SkyScaleRect(pixels,renderer.Width(),menuPixels,SKY_DISPLAY_W,0,0,SKY_DISPLAY_W,SKY_DISPLAY_H);else SkyPresentRect(pixels,renderer.Width(),menuPixels,SKY_DISPLAY_W,0,0,SKY_DISPLAY_W,SKY_DISPLAY_H);}
+        StretchDIBits(dc,0,0,rc.right,rc.bottom,0,0,bi.head.biWidth,-bi.head.biHeight,menuPixels,(BITMAPINFO*)&bi,DIB_RGB_COLORS,SRCCOPY);
         if(!menu.Visible()){
         SetBkMode(dc,TRANSPARENT);SetTextColor(dc,RGB(255,255,255));char text[128];
         sprintf(text,"SPD %d  ALT %d  THR %d%% %s",FxInt(flight.state.speed*Fix::Raw(235930)),FxInt(flight.state.altitude),FxInt(flight.state.throttle*100),paused?"PAUSE":"");
@@ -54,6 +56,6 @@ int WINAPI WinMain(HINSTANCE instance,HINSTANCE,LPSTR,int show){
         DWORD now=GetTickCount(),dt=now-last;if(dt<50){Sleep(1);continue;}last=now;if(dt>250)dt=250;
         FlightInput in={0};if(GetForegroundWindow()==w){in.pitch=(Key(VK_DOWN)?Fix::Raw(65536):0)-(Key(VK_UP)?Fix::Raw(65536):0);in.roll=(Key(VK_RIGHT)?Fix::Raw(65536):0)-(Key(VK_LEFT)?Fix::Raw(65536):0);in.throttle=(Key('3')?Fix::Raw(65536):0)-(Key('1')?Fix::Raw(65536):0);in.yaw=(Key('9')?Fix::Raw(65536):0)-(Key('7')?Fix::Raw(65536):0);}
         if(!paused){accum+=dt;while(accum>=20){FlightModel_Step(&flight,&in,Fix::Raw(1311));accum-=20;}}else accum=0;
-        if(!paused){renderer.Render(pixels,SKY_W,flight.state);InvalidateRect(w,0,FALSE);}
+        if(!paused){renderer.Render(pixels,renderer.Width(),flight.state);InvalidateRect(w,0,FALSE);}
     }
 }
