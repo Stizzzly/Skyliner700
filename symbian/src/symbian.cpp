@@ -14,6 +14,7 @@
 #include <e32svr.h>
 #include "soft3d.h"
 #include "menu.h"
+#include "hud.h"
 #include "runtime.h"
 #include "framebuffer.h"
 
@@ -113,15 +114,19 @@ public:
             iMenuBitmap->LockHeap(ETrue);source=(const Pixel*)iMenuBitmap->DataAddress();
             sourceStride=CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)>>1;
         }
+        if(!menu)iHud.Update(FxInt(iFlight.state.speed*Fix::Raw(235930)),FxInt(iFlight.state.altitude),FxInt(iFlight.state.throttle*100),iFps);
         Pixel* screen=iScreenBase+iScreenOrigin.iY*iScreenStride+iScreenOrigin.iX;
         const TRect* rectangles=region->RectangleList();
         for(TInt n=0;n<region->Count();++n){
             TRect r=rectangles[n];r.Move(-iScreenOrigin.iX,-iScreenOrigin.iY);
-            SkyPresentRect(source,sourceStride,screen,iScreenStride,
-                           r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,!menu);
+            if(menu)SkyPresentRect(source,sourceStride,screen,iScreenStride,
+                                  r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,false);
+            else{
+                SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
+                SkyPaintHudRect(iHud,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
+            }
         }
         if(menu)iMenuBitmap->UnlockHeap(ETrue);
-        else PaintHud(*iDsa->Gc());
         iDsa->ScreenDevice()->Update(*iDsa->DrawingRegion());
     }
     void BuildMenu(){
@@ -218,7 +223,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.39"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.40"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
@@ -235,21 +240,9 @@ public:
         TPoint origin=PositionRelativeToScreen();text.Format(_L("XY %d %d"),origin.iX,origin.iY);gc.DrawText(text,TPoint(2,190));
         gc.DrawText(_L("# / RIGHT SOFT: EXIT"),TPoint(2,201));gc.DiscardFont();
     }
-    void PaintHud(CBitmapContext& gc) const {
-        gc.SetBrushStyle(CGraphicsContext::ESolidBrush);gc.SetBrushColor(TRgb(7,20,34));
-        gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(2,2,174,31));
-        gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(220,239,250));gc.UseFont(iEikonEnv->LegendFont());
-        TBuf<64> text;
-        text.Format(_L("SPD %d   ALT %d"),FxInt(iFlight.state.speed*Fix::Raw(235930)),FxInt(iFlight.state.altitude));
-        gc.DrawText(text,TPoint(6,14));
-        text.Format(_L("THR %d%%   FPS %d"),FxInt(iFlight.state.throttle*100),iFps);
-        gc.DrawText(text,TPoint(6,27));
-        gc.DrawText(_L("MENU"),TPoint(4,SKY_DISPLAY_H-5));
-        gc.DrawText(_L("EXIT"),TPoint(SKY_DISPLAY_W-30,SKY_DISPLAY_H-5));
-        gc.DiscardFont();
-    }
 
 private:
+    HudState iHud;
     CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
     Pixel* iScreenBase;TInt iScreenStride;TPoint iScreenOrigin;

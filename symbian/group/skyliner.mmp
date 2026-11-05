@@ -4,7 +4,7 @@ EXPORTUNFROZEN
 UID 0x100039CE 0x0F700660
 TARGETPATH \system\apps\Skyliner700
 SOURCEPATH ..\src
-SOURCE symbian.cpp soft3d.cpp physics.cpp terrain.cpp fixed.cpp menu.cpp
+SOURCE symbian.cpp soft3d.cpp physics.cpp terrain.cpp fixed.cpp menu.cpp hud.cpp
 USERINCLUDE ..\src ..\upstream ..\upstream\game ..\upstream\world
 SYSTEMINCLUDE \epoc32\include \epoc32\include\libc
 RESOURCE Skyliner700.rss

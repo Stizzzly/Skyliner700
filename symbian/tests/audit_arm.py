@@ -8,14 +8,14 @@ import sys
 
 sdk, objects = map(Path, sys.argv[1:3])
 nm = sdk / 'epoc32/gcc/bin/nm.exe'
-expected = ['FIXED.o', 'PHYSICS.o', 'SOFT3D.o', 'TERRAIN.o', 'SYMBIAN.o','MENU.o']
+expected = ['FIXED.o', 'PHYSICS.o', 'SOFT3D.o', 'TERRAIN.o', 'SYMBIAN.o','MENU.o','HUD.o']
 paths = [objects / name for name in expected]
 assert all(p.is_file() for p in paths), 'Missing native object'
 output = subprocess.check_output([str(nm), *map(str, paths)], text=True, errors='replace')
 forbidden = re.compile(r'\b__(?:add|sub|mul|div|neg|cmp|eq|ne|lt|le|gt|ge|unord)(?:sf|df|xf|tf)\d|\b__(?:float|fix|extend|trunc)\w*(?:sf|df)\w*|\b(?:sin|cos|tan|atan2|sqrt|floor|ceil|pow|fmod)f?\b|_GLOBAL_.*(?:sub_I|I_)')
 bad = [line for line in output.splitlines() if forbidden.search(line)]
 assert not bad, 'Floating-point/helper/global-init symbols:\n' + '\n'.join(bad)
-print('PASS: all six native ARM objects contain no floating-point/libm helpers or global constructors.')
+print('PASS: all seven native ARM objects contain no floating-point/libm helpers or global constructors.')
 print('Integer 64-bit division helpers are allowed; these are not floating point.')
 
 objdump = sdk / 'epoc32/gcc/bin/objdump.exe'
@@ -27,7 +27,7 @@ for path in paths:
     symbols = subprocess.check_output([str(nm), '-u', str(path)], text=True, errors='replace')
     division = [line.strip() for line in symbols.splitlines() if re.search(r'__(?:u?div|u?mod|aeabi_.*div)', line)]
     print(path.name + ': ARM32; integer division dependencies: ' + (', '.join(division) or 'none'))
-print('PASS: all six objects disassemble as 32-bit ARM instructions; no Thumb instructions found.')
+print('PASS: all seven objects disassemble as 32-bit ARM instructions; no Thumb instructions found.')
 
 assembly = subprocess.check_output([str(objdump), '-dr', str(objects / 'SOFT3D.o')], text=True, errors='replace')
 # Keep local .L labels inside the body; stop at the next named C++ function.
@@ -86,3 +86,14 @@ owned = re.search(r'<OwnRequestsL__9CFlightUi>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:
 assert owned, 'Missing owned loop body'
 assert owned.group(1).index('ARM_26\tCancel__7CActive') < owned.group(1).index('ARM_26\tEventReady__10RWsSession'), 'CONE must be cancelled before owning WS requests'
 print('PASS: native owned WS pump, CONE cancel before EventReady, direct GetEvent/WaitForAnyRequest/RunIfReady, no CPeriodic.')
+
+# Normal flight presentation uses pixels/cache, never the GC font/text path.
+present=re.search(r'<Present__11CFlightView>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)',ui_asm,re.M|re.S)
+assert present, 'Missing native Present'
+assert not re.search(r'ARM_26\s+\S*(?:UseFont|DiscardFont|DrawText|Format)',present.group(1)), 'GC font/text formatting in normal Present'
+assert 'SkyPaintHudRect__FRC8HudStatePUsiiiii' in ui, 'Missing direct clipped HUD'
+assert 'Update__8HudStateiiii' in ui, 'Missing HUD cache update'
+assert 'PaintHud__' not in ui, 'Legacy GC HUD remains'
+hud_symbols=subprocess.check_output([str(nm),'-u',str(objects/'HUD.o')],text=True,errors='replace')
+assert not re.search(r'UseFont|DiscardFont|DrawText|Format|RWsSession',hud_symbols), 'HUD depends on GC/WS formatting'
+print('PASS: normal Present uses cached clipped pixel HUD, with no direct GC font/text/Format calls.')
