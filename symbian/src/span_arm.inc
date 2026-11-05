@@ -1,6 +1,6 @@
 // ARMv4T, EKA1 GCC 2.9. C ABI; word-aligned buffers and pixel count >= 2.
 // Save callee registers once; no stack accesses or calls inside the pair loop.
-extern "C" void SkyDrawPairsArm(Pixel*,Pixel*,int,int,int,int,unsigned);
+extern "C" void SkyDrawPairsArm(Pixel*,Pixel*,int,int,int,unsigned);
 __asm__(
     ".text\n\t"
     ".align 2\n\t"
@@ -8,8 +8,7 @@ __asm__(
     "SkyDrawPairsArm:\n\t"
     "stmfd sp!, {r4-r10, lr}\n\t"
     "ldr r4, [sp, #32]\n\t"
-    "ldr r5, [sp, #36]\n\t"
-    "ldr r6, [sp, #40]\n\t"
+    "ldr r6, [sp, #36]\n\t"
     "and lr, r2, #1\n\t"
     "mov r2, r2, lsr #1\n\t"
     "1:\n\t"
@@ -17,10 +16,8 @@ __asm__(
     "ldrh r8, [r1, #2]\n\t"
     "mov r9, r3, asr #8\n\t"
     "add r3, r3, r4\n\t"
-    "add r9, r9, r5\n\t"
     "mov r10, r3, asr #8\n\t"
     "add r3, r3, r4\n\t"
-    "add r10, r10, r5\n\t"
     "cmp r9, r7\n\t"
     "cmpgt r10, r8\n\t"
     "ble 2f\n\t"
@@ -47,7 +44,6 @@ __asm__(
     "beq 4f\n\t"
     "ldrh r7, [r1]\n\t"
     "mov r9, r3, asr #8\n\t"
-    "add r9, r9, r5\n\t"
     "cmp r9, r7\n\t"
     "strgth r9, [r1]\n\t"
     "strgth r6, [r0]\n\t"

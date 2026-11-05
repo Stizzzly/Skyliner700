@@ -51,7 +51,7 @@ static void CheckSpanPairs(){
         for(int i=0;i<count;++i){int d=(current>>8)+bias;
             if(d>expectedDepths[zoffset+i]){expectedDepths[zoffset+i]=(Pixel)d;expectedPixels[offset+i]=color;}current+=dz;
         }
-        DrawSpan(pixels+offset,depths+zoffset,count,z,dz,bias,color);
+        DrawSpan(pixels+offset,depths+zoffset,count,z+bias*256,dz,color);
         if(memcmp(pixels,expectedPixels,sizeof(pixels))||memcmp(depths,expectedDepths,sizeof(depths))){
             fprintf(stderr,"Span pair/alignment/tail mismatch: %d\n",sample);exit(1);
         }

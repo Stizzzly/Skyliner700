@@ -1,13 +1,15 @@
-Version 0.1.29: aligned ARM spans from 2 pixels; odd tail inside kernel
-Internal SkyDrawPairsArm ABI now takes full pixel count >= 2, not pair count
-DrawSpan returns after native call; no post-call pointer/depth multiplication
-Prefix and mismatched-alignment scalar paths retained
-Native Unicorn: 5000 even/odd aligned kernel + 5000 wrapper cases: PASS
+Version 0.1.30: apply depthBias once after unbiased Z-plane setup
+rowz += depthBias * 256; vertex depths/dzx/dzy rounding unchanged
+Removed per-pixel bias from scalar/paired/ARM paths, including native odd tail
+Internal DrawSpan and SkyDrawPairsArm signatures no longer take bias
+Reference raster retains old per-pixel bias for independent comparison
+Native Unicorn: 5000 aligned kernel + 5000 wrapper cases: PASS
+Comparison against old bias behavior includes 16-bit depth boundaries/fractions
 Z masks, alignment, tails, guards and callee-saved ABI: PASS
-Native SDK build and ARM32/no-FP/divide/span/odd-tail audits: PASS
+Native SDK build and ARM32/no-FP/divide/span/odd-tail/no-bias-add audits: PASS
 Full preview/math/physics/menu/framebuffer regressions: PASS; 86c26771 unchanged
 Legacy SIS APP/RSC/AIF structure: PASS
-User 0.1.28 baseline: ground 34 FPS, after takeoff 38 FPS
-0.1.29 device FPS measurement pending; short-call overhead still matters
-Full Z, paired source scaler, cached terrain outcodes, direct framebuffer retained; no tiles
-SHA256 SIS: 01e7407f6daba8c3bc41ba20bd1662fcfa7bf364fb2fef7cc182e502c3a9ea95
+0.1.28 measured baseline: ground 34 FPS, after takeoff 38 FPS
+0.1.29 user reported no noticeable gain; retained at user request
+0.1.30 device FPS measurement pending
+SHA256 SIS: 71491d99475382c47fa6a74b8a3532e8e42ca5ca89e8fbd8c8ffa25b7247556e

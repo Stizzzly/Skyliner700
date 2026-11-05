@@ -22,7 +22,7 @@ for section in range(sections):
         length,pointer=struct.unpack_from('<II',data,offset+16)
         code=data[pointer:pointer+length]
 assert code, 'Missing COFF .text section'
-wrapper = re.search(r'^([0-9a-fA-F]+) [tT] DrawSpan__FPUsT0iiiiUs$', symbols, re.M)
+wrapper = re.search(r'^([0-9a-fA-F]+) [tT] DrawSpan__FPUsT0iiiUs$', symbols, re.M)
 assert wrapper, 'Missing native span wrapper'
 # Resolve the object's C-call relocation for native DrawSpan -> SkyDrawPairsArm.
 assembly=subprocess.check_output([str(tools/'objdump.exe'), '-dr', str(obj)], text=True)
@@ -55,6 +55,10 @@ for sample in range(10000):
     if case<4:
         z=100<<8;dz=0;bias=0
         for i in range(count):depth[depth_offset+i]=0 if (sample>>(i&1))&1 else 100
+    if 4<=case<40:
+        # Both sides of signed/16-bit depth boundaries, nonzero Q8 fractions.
+        z=((case%3)*65535-1)*256+(case%256);bias=(0,2,4)[case%3]
+        dz=(-257,-1,0,1,257)[case%5]
     expected_pixels=pixels[:];expected_depth=depth[:]
     current=z
     for i in range(count):
@@ -64,8 +68,8 @@ for sample in range(10000):
     pack=lambda values:struct.pack('<256H',*values)
     uc.mem_write(0x300000,pack(pixels));uc.mem_write(0x302000,pack(depth))
     sp=0x208000
-    uc.mem_write(sp,struct.pack('<iiI',dz,bias,color if full_span else color|(color<<16)))
-    for reg,value in [(UC_ARM_REG_R0,0x300000+output_offset*2),(UC_ARM_REG_R1,0x302000+depth_offset*2),(UC_ARM_REG_R2,count),(UC_ARM_REG_R3,z&0xffffffff),(UC_ARM_REG_SP,sp),(UC_ARM_REG_LR,stop)]:uc.reg_write(reg,value)
+    uc.mem_write(sp,struct.pack('<iI',dz,color if full_span else color|(color<<16)))
+    for reg,value in [(UC_ARM_REG_R0,0x300000+output_offset*2),(UC_ARM_REG_R1,0x302000+depth_offset*2),(UC_ARM_REG_R2,count),(UC_ARM_REG_R3,(z+bias*256)&0xffffffff),(UC_ARM_REG_SP,sp),(UC_ARM_REG_LR,stop)]:uc.reg_write(reg,value)
     saved=[0x66000000+i for i in range(8)]
     for reg,value in zip(registers,saved):uc.reg_write(reg,value)
     uc.emu_start(base+int((wrapper if full_span else match).group(1),16),stop,count=20000)

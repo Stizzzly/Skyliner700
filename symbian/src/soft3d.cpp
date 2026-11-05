@@ -133,8 +133,8 @@ static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.
 #if defined(__MARM__) && defined(__GCC32__) && !defined(SKY_SCALAR_SPANS)
 #include "span_arm.inc"
 #endif
-static void DrawSpan(Pixel* dst,Pixel* zbuf,int count,int z,int dz,int bias,Pixel color){
-#define SPAN_PIXEL do { int d=(z>>8)+bias; if(d>(int)ReadPixel(zbuf)){*zbuf=(Pixel)d;*dst=color;} ++dst;++zbuf;z+=dz; } while(0)
+static void DrawSpan(Pixel* dst,Pixel* zbuf,int count,int z,int dz,Pixel color){
+#define SPAN_PIXEL do { int d=(z>>8); if(d>(int)ReadPixel(zbuf)){*zbuf=(Pixel)d;*dst=color;} ++dst;++zbuf;z+=dz; } while(0)
 #ifndef SKY_SCALAR_SPANS
     // A single prefix pixel aligns both pointers when their halfword parity agrees.
     if(count>0&&((size_t)dst&2)&&((size_t)zbuf&2)){SPAN_PIXEL;--count;}
@@ -142,13 +142,13 @@ static void DrawSpan(Pixel* dst,Pixel* zbuf,int count,int z,int dz,int bias,Pixe
     if(count>=2&&(((size_t)dst|(size_t)zbuf)&3)==0){
         unsigned packed=(unsigned)color|((unsigned)color<<16);
 #if defined(__MARM__) && defined(__GCC32__)
-        SkyDrawPairsArm(dst,zbuf,count,z,dz,bias,packed);
+        SkyDrawPairsArm(dst,zbuf,count,z,dz,packed);
         return;
 #else
         // Portable equivalent: both reads precede tests/stores, preserving all masks.
         while(count>=2){
             unsigned old0=ReadPixel(zbuf),old1=ReadPixel(zbuf+1);
-            int d0=(z>>8)+bias;z+=dz;int d1=(z>>8)+bias;z+=dz;
+            int d0=(z>>8);z+=dz;int d1=(z>>8);z+=dz;
             bool pass0=d0>(int)old0,pass1=d1>(int)old1;
             if(pass0&&pass1){
                 WritePair(dst,packed);
@@ -197,6 +197,8 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     int dzy=(int)AreaDivide(((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256,(unsigned)area,inverseArea);
     int rowz=(int)AreaDivide(((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256,(unsigned)area,inverseArea);
 #ifndef SKY_REFERENCE_RASTER
+    // Apply the constant only after the unbiased plane gradients were rounded.
+    rowz+=depthBias*256;
     unsigned edgeDivisor[3];UWide edgeInverse[3];
     for(int edge=0;edge<3;++edge){
         int step=dx[edge];edgeDivisor[edge]=(unsigned)(step<0?-step:step);
@@ -220,7 +222,7 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             else if(step<0){if(w<0){last=-1;break;}int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);if(bound<last)last=bound;}
             else if(step==0&&w<0){last=-1;break;}
         }
-        if(first<=last)DrawSpan(target+y*pitch+minx+first,depth+y*SKY_W+minx+first,last-first+1,rowz+dzx*first,dzx,depthBias,color);
+        if(first<=last)DrawSpan(target+y*pitch+minx+first,depth+y*SKY_W+minx+first,last-first+1,rowz+dzx*first,dzx,color);
 #endif
         for(int j=0;j<3;++j)row[j]+=dy[j];
         rowz+=dzy;

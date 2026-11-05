@@ -62,12 +62,13 @@ start=next(i for i,(op,args) in enumerate(ops) if op=='ldrh')
 end=next(i for i,(op,args) in enumerate(ops) if op=='bne')+1
 loop=ops[start:end]
 assert [op for op,args in loop[:2]]==['ldrh','ldrh'], 'Pair Z loads are not first'
-assert next(i for i,(op,args) in enumerate(loop) if op.startswith('cmp'))>=8, 'Z load-use gap lost'
+assert next(i for i,(op,args) in enumerate(loop) if op.startswith('cmp'))>=6, 'Z load-use gap lost'
 assert not any(re.search(r'\b(?:sp|r13)\b',args) or op in ('bl','blx') for op,args in loop), 'Pair-loop stack traffic or call'
 assert sum(op=='str' for op,args in loop)==2, 'Missing packed framebuffer/depth stores'
 assert sum(op=='strgth' for op,args in loop)==4, 'Missing mixed-result halfword stores'
 assert sum(op=='strgth' for op,args in ops[end:])==2, 'Missing native odd-tail stores'
-print('PASS: pair kernel loads Z early, packed/mixed stores, no loop stack/calls, native odd tail.')
+assert not any(re.search(r'\br5\b',args) and op=='add' for op,args in ops), 'Per-pixel bias add remains'
+print('PASS: pair kernel loads Z early, packed/mixed stores, no loop stack/calls, native odd tail, no pixel bias adds.')
 
 ui = subprocess.check_output([str(nm), str(objects / 'SYMBIAN.o')], text=True, errors='replace')
 for symbol in ('EventReady__10RWsSessionP14TRequestStatus', 'GetEvent__10RWsSessionR8TWsEvent',
