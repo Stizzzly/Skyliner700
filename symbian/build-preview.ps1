@@ -33,9 +33,9 @@ try {
     Push-Location tests
     try {
         $original=(& ./smoke-baseline.exe | Out-String)
-        if($LASTEXITCODE -ne 0 -or $original -ne $normal){throw 'Optimized renderer differs from unchanged 0.1.7 baseline'}
+        if($LASTEXITCODE -ne 0 -or $original -ne $normal){throw 'Optimized renderer differs from 0.1.7 reference adjusted to native resolution'}
     } finally { Pop-Location }
-    Write-Output 'PASS: unchanged 0.1.7 renderer and optimized renderer match across all 80 frames.'
+    Write-Output 'PASS: 0.1.7 reference (native dimensions/focal length) and optimized renderer match across all 80 frames.'
     & $Compiler @baseline tests/clipping_tests.cpp -o tests/clipping-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Clipping test build failed'}
     & ./tests/clipping-tests.exe

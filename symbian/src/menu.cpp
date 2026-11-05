@@ -56,7 +56,7 @@ void SkyDrawMenu(Pixel* pixels,int stride,const MenuState& state,const Pixel* ba
     Pixel cyan=Color(80,184,230),gold=Color(255,231,122),regular=Color(220,239,250);
     for(int y=0;y<c.height;++y)for(int x=0;x<c.width;++x){
         Pixel p=Color(7,20+y/16,34+y/8);
-        if(background&&state.mode==MenuState::Paused)p=(Pixel)((background[(y/2)*backgroundStride+x/2]&0xE79C)>>2);
+        if(background&&state.mode==MenuState::Paused)p=(Pixel)((background[y*backgroundStride+x]&0xE79C)>>2);
         c.Point(x,y,p);
     }
     if(state.mode==MenuState::Main){

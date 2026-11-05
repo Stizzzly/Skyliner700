@@ -14,16 +14,6 @@ static inline unsigned ReadPixel(const Pixel* p){
     return *p;
 #endif
 }
-// Only used on a word-aligned source; preserve alias safety on the desktop.
-static inline unsigned ReadPair(const Pixel* p){
-#if defined(__MARM__) && defined(__GCC32__)
-    unsigned value;
-    __asm__("ldr %0, [%1]" : "=r"(value) : "r"(p), "m"(p[0]), "m"(p[1]));
-    return value;
-#else
-    unsigned value;memcpy(&value,p,sizeof(value));return value;
-#endif
-}
 static inline void WritePair(Pixel* p,unsigned value){
 #if defined(__MARM__) && defined(__GCC32__)
     __asm__ __volatile__("str %0, [%1]" : : "r"(value),"r"(p) : "memory");
@@ -31,27 +21,6 @@ static inline void WritePair(Pixel* p,unsigned value){
     // memcpy avoids type-aliasing violations in the portable harness.
     memcpy(p,&value,sizeof(value));
 #endif
-}
-void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int destinationStride){
-    const bool aligned=(((size_t)destination&3)==0)&&((destinationStride&1)==0);
-    for(int y=0;y<SKY_H;++y){
-        Pixel* first=destination+(y*2)*destinationStride;
-        Pixel* second=first+destinationStride;
-        const Pixel* row=source+y*sourceStride;
-        if(aligned&&((size_t)row&3)==0){
-            for(int x=0;x<SKY_W;x+=2){
-                unsigned pair=ReadPair(row+x);
-                unsigned low=(pair&65535u)|(pair<<16);
-                unsigned high=(pair>>16)|(pair&0xffff0000u);
-                WritePair(first+x*2,low);WritePair(second+x*2,low);
-                WritePair(first+x*2+2,high);WritePair(second+x*2+2,high);
-            }
-        }else if(aligned){
-            for(int x=0;x<SKY_W;++x){unsigned p=ReadPixel(source+y*sourceStride+x);unsigned packed=p|(p<<16);WritePair(first+x*2,packed);WritePair(second+x*2,packed);}
-        }else{
-            for(int x=0;x<SKY_W;++x){Pixel p=(Pixel)ReadPixel(source+y*sourceStride+x);first[x*2]=p;first[x*2+1]=p;second[x*2]=p;second[x*2+1]=p;}
-        }
-    }
 }
 static inline int RawMul(int a,int b){
 #if defined(__MARM__) && defined(__GCC32__)
@@ -173,14 +142,18 @@ void Soft3D::ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pix
     }
     for(int k=1;k<count-1;++k)Raster(p[0],p[k],p[k+1],color);
 }
-// Exact integer division from one shared Q40 reciprocal. For a Q16.16
-// coordinate times 1000, reciprocal rounding underestimates by at most 2.
-// Two bounded remainder corrections recover the original quotient exactly.
+// Exact quotient from a shared Q40 reciprocal, for magnitudes < 2^42.
+// Split the product to avoid overflowing 64 bits at full-resolution projection.
+// The floor reciprocal underestimates by fewer than four quotient units.
 static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse){
     bool negative=numerator<0;
     UWide magnitude=(UWide)(negative?-numerator:numerator);
-    unsigned q=(unsigned)((magnitude*inverse)>>40);
+    unsigned inv=(unsigned)inverse;
+    UWide high=(((UWide)(unsigned)magnitude*inv)>>32)+(UWide)(unsigned)(magnitude>>32)*inv;
+    unsigned q=(unsigned)(high>>8);
     UWide remainder=magnitude-(UWide)q*(unsigned)denominator;
+    if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
+    if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
     if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
     if(remainder>=(unsigned)denominator)++q;
     return negative?-(int)q:(int)q;
@@ -193,8 +166,8 @@ static Screen Project(const Vec& v){
     ++projectCalls;
 #endif
     UWide inverse=DepthInverse(v.z);
-    Screen s;s.x=SKY_W*8+ReciprocalDivide((Wide)v.x*1000,v.z,inverse);
-    s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*1000,v.z,inverse);
+    Screen s;s.x=SKY_W*8+ReciprocalDivide((Wide)v.x*2000,v.z,inverse);
+    s.y=SKY_H*8-ReciprocalDivide((Wide)v.y*2000,v.z,inverse);
     s.z=ReciprocalDivide(30000LL*65536,v.z,inverse);return s;
 }
 // Shared classification/projection for vertices referenced by several triangles.

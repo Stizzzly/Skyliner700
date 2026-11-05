@@ -24,7 +24,7 @@ int main(){
         int sourceStride=SKY_W+trial%7;
         std::vector<Pixel> source(sourceStride*SKY_H),full(stride*SKY_DISPLAY_H+32,0),out(offset+stride*SKY_DISPLAY_H+16,0xA55A);
         for(unsigned i=0;i<source.size();++i){seed=seed*1664525u+1013904223u;source[i]=(Pixel)seed;}
-        SkyScale2x(&source[0],sourceStride,&full[0],stride);
+        SkyPresentRect(&source[0],sourceStride,&full[0],stride,0,0,SKY_DISPLAY_W,SKY_DISPLAY_H);
         SkyPaintHudRect(hud,&full[0],stride,0,0,SKY_DISPLAY_W,SKY_DISPLAY_H);
         int l=(int)((seed>>3)%200)-12,t=(int)((seed>>11)%230)-12;
         seed=seed*1664525u+1013904223u;
@@ -35,7 +35,7 @@ int main(){
         for(int y=0;y<SKY_DISPLAY_H;++y)for(int x=0;x<SKY_DISPLAY_W;++x){
             bool clip=x>=l&&x<r&&y>=t&&y<b;
             bool panel=x>=SKY_HUD_LEFT&&x<SKY_HUD_RIGHT&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM;
-            Pixel expected=clip&&!panel?source[(y/2)*sourceStride+x/2]:0xA55A;
+            Pixel expected=clip&&!panel?source[y*sourceStride+x]:0xA55A;
             Check(out[offset+y*stride+x]==expected,"scene clips and skips opaque HUD before paint");
         }
         SkyPaintHudRect(hud,&out[offset],stride,l,t,r,b);

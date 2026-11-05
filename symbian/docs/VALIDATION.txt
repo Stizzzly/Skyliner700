@@ -1,20 +1,18 @@
-Version 0.1.40: cached direct framebuffer HUD
-Normal flight Present has no UseFont/DiscardFont/DrawText/Format calls
-5x7 menu font, ASCII numeric cache updated only on changed fields
-Opaque RAM panel cache: 172x29 RGB565 = 9976 bytes
-4988 scene pixels excluded from scaling/presentation under opaque panel
-3D renderer still renders full 88x104 scene; FPS counting unchanged
-Paired source reads/output stores and two-row reuse retained
-Direct panel/softkey writes clipped to each DSA-approved rectangle
-Mapping error diagnostic retains GC; menu and DSA Update unchanged
-1000 HUD composition tests: pixel/stride/alignment/clip/guard equivalence PASS
-Cache/negative/INT_MIN/percent formatting and skipped panel scene writes PASS
-Native Present relocation audit: no direct GC font/text/Format calls PASS
-Seven native ARM objects: no FP/global constructors; SDK build PASS
-Full preview/math/physics/menu/framebuffer/clipping/quad regressions PASS
-80 camera poses: checksum 86c26771 unchanged
-Legacy SIS APP/RSC/AIF structure PASS
-Desktop HUD preview visually checked; sample values are illustrative
-0.1.40 device FPS and DSA foreground/background lifecycle not yet tested
-Measured 0.1.37 baseline: 46-47 ground, 51 airborne FPS
-SHA256 SIS: 9610aba09300708e5bd125546660b739602d22fea620acf2ae0f7cb1d3fe7932
+Version 0.1.41: native 176x208 render, no SkyScale2x
+Color/depth buffers: 73216 bytes each, 146432 total (+109824 vs 88x104)
+Scene and paused-menu background copied 1:1; clipped DSA/HUD behavior retained
+Projection focal multiplier 2000 preserves original physical FOV
+Split reciprocal product avoids overflow; four bounded exact corrections
+1000000 full-range/boundary projection comparisons against integer division: PASS
+Reference renderer adapted only to native dimensions/focal and scaler removal
+80 camera poses: new native checksum af33ac27 matches reference
+Paired/scalar/reference coverage comparisons: PASS
+1000 HUD composition + 1200 framebuffer clipping/stride/alignment/guard tests: PASS
+Full math/physics/input/menu/clipping/quad/runway regressions: PASS
+Seven SDK ARM objects, no FP/global constructors/obsolete scaler symbols: PASS
+Native Project has no division/modulo/variable-wide-shift helper calls
+Legacy SIS APP/RSC/AIF structure: PASS
+Native desktop scene/HUD visually checked
+0.1.40 measured 60 FPS ground; retained as lower-resolution baseline
+0.1.41 hardware behavior/FPS not yet tested
+SHA256 SIS: fa882707a1c25afa2788b5498d9fda73973a294bc21a3bce672020c5db139237

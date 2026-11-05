@@ -3,13 +3,6 @@
 #include "fixed.h"
 #include <string.h>
 #include "plane.inc"
-void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int destinationStride){
-    for(int y=0;y<SKY_H;++y){
-        Pixel* first=destination+(y*2)*destinationStride;
-        Pixel* second=first+destinationStride;
-        for(int x=0;x<SKY_W;++x){Pixel p=source[y*sourceStride+x];first[x*2]=p;first[x*2+1]=p;second[x*2]=p;second[x*2+1]=p;}
-    }
-}
 static Vec V(Fix x,Fix y,Fix z) { Vec v={x,y,z}; return v; }
 static Vec Add(Vec a,Vec b) { return V(a.x+b.x,a.y+b.y,a.z+b.z); }
 static Vec Sub(Vec a,Vec b) { return V(a.x-b.x,a.y-b.y,a.z-b.z); }
@@ -61,8 +54,8 @@ struct Screen { int x,y,z; };
 static Screen Project(Vec v) {
     // Screen coordinates in 1/16 pixel, reciprocal depth in integer units.
     // Project directly with widened integers: no low-precision Q16 reciprocal.
-    Screen s;s.x=SKY_W*8+(int)(((Wide)v.x.raw*1000)/v.z.raw);
-    s.y=SKY_H*8-(int)(((Wide)v.y.raw*1000)/v.z.raw);
+    Screen s;s.x=SKY_W*8+(int)(((Wide)v.x.raw*2000)/v.z.raw);
+    s.y=SKY_H*8-(int)(((Wide)v.y.raw*2000)/v.z.raw);
     s.z=(int)((30000LL*65536)/v.z.raw);return s;
 }
 static int Edge(Screen a,Screen b,int x,int y) {return (b.x-a.x)*(y-a.y)-(b.y-a.y)*(x-a.x);}

@@ -4,8 +4,6 @@
 #include <string.h>
 static Pixel pixels[(SKY_W+8)*SKY_H+32];
 static Soft3D renderer;
-static Pixel scaled[(SKY_DISPLAY_W+8)*SKY_DISPLAY_H];
-static Pixel oddScaled[(SKY_DISPLAY_W+9)*SKY_DISPLAY_H+2];
 static void Check(int ok,const char* msg){if(!ok){fprintf(stderr,"FAIL: %s\n",msg);exit(1);}}
 static void Save(const char* path){
     FILE* f=fopen(path,"wb");Check(f!=0,"open preview");fprintf(f,"P6\n%d %d\n255\n",SKY_W,SKY_H);
@@ -21,17 +19,6 @@ int main(){
         if(frame){s.x=(Fix)((frame%9-4)*130);s.z=(Fix)((frame%13-6)*170);s.y=(Fix)(frame%7)*35;s.yaw=frame*Fix::Raw(34734);s.pitch=Fix::Raw(19661);s.roll=Fix::Raw(39322);}
         renderer.Render(pixels+16,SKY_W+8,s);
         for(int hy=0;hy<SKY_H;++hy)for(int hx=0;hx<SKY_W;++hx){frameHash^=pixels[16+hy*(SKY_W+8)+hx];frameHash*=16777619u;}
-        for(unsigned si=0;si<sizeof(scaled)/sizeof(scaled[0]);++si)scaled[si]=0xA55A;
-        SkyScale2x(pixels+16,SKY_W+8,scaled,SKY_DISPLAY_W+8);
-        for(unsigned oi=0;oi<sizeof(oddScaled)/sizeof(oddScaled[0]);++oi)oddScaled[oi]=0xA55A;
-        SkyScale2x(pixels+16,SKY_W+8,oddScaled+1,SKY_DISPLAY_W+9);
-        Check(oddScaled[0]==0xA55A&&oddScaled[(SKY_DISPLAY_W+9)*SKY_DISPLAY_H+1]==0xA55A,"unaligned scaling outer guards");
-        for(int sy=0;sy<SKY_DISPLAY_H;++sy){
-            for(int sx=0;sx<SKY_DISPLAY_W;++sx)Check(scaled[sy*(SKY_DISPLAY_W+8)+sx]==pixels[16+(sy/2)*(SKY_W+8)+sx/2],"2x pixel mapping");
-            for(int pad=SKY_DISPLAY_W;pad<SKY_DISPLAY_W+8;++pad)Check(scaled[sy*(SKY_DISPLAY_W+8)+pad]==0xA55A,"2x stride guard");
-            for(int sx=0;sx<SKY_DISPLAY_W;++sx)Check(oddScaled[1+sy*(SKY_DISPLAY_W+9)+sx]==pixels[16+(sy/2)*(SKY_W+8)+sx/2],"unaligned scaling pixel mapping");
-            for(int pad=SKY_DISPLAY_W;pad<SKY_DISPLAY_W+9;++pad)Check(oddScaled[1+sy*(SKY_DISPLAY_W+9)+pad]==0xA55A,"odd scaling stride guard");
-        }
         for(int g=0;g<16;++g){Check(pixels[g]==0xA55A,"leading guard");Check(pixels[16+(SKY_W+8)*SKY_H+g]==0xA55A,"trailing guard");}
         for(int y=0;y<SKY_H;++y)for(int x=SKY_W;x<SKY_W+8;++x)Check(pixels[16+y*(SKY_W+8)+x]==0xA55A,"stride guard");
         if(frame==0){Save("runway.ppm");int changed=0;Pixel sky=pixels[16];for(int i=0;i<SKY_H;++i)for(int j=0;j<SKY_W;++j)if(pixels[16+i*(SKY_W+8)+j]!=sky)++changed;Check(changed>1000,"visible scene");}

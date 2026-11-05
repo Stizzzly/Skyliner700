@@ -1,9 +1,8 @@
 #ifndef SKY_SOFT3D_H
 #define SKY_SOFT3D_H
 #include "game/flight.h"
-enum { SKY_W=88, SKY_H=104, SKY_DISPLAY_W=176, SKY_DISPLAY_H=208 };
+enum { SKY_W=176, SKY_H=208, SKY_DISPLAY_W=176, SKY_DISPLAY_H=208 };
 typedef unsigned short Pixel;
-void SkyScale2x(const Pixel* source,int sourceStride,Pixel* destination,int destinationStride);
 // Plain Q16.16 storage: no Fix constructors/zeroing for temporary vectors.
 struct Vec { int x,y,z; };
 struct Screen { int x,y,z; };

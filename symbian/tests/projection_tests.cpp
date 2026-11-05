@@ -6,8 +6,8 @@
 static void CheckProjection(int x,int y,int z){
     if(DepthInverse(z)!=(unsigned)((1ULL<<40)/(unsigned)z)){fprintf(stderr,"Inverse mismatch: %d\n",z);exit(1);}
     Vec v;v.x=x;v.y=y;v.z=z;Screen actual=Project(v);
-    int ex=SKY_W*8+(int)(((Wide)x*1000)/z);
-    int ey=SKY_H*8-(int)(((Wide)y*1000)/z);
+    int ex=SKY_W*8+(int)(((Wide)x*2000)/z);
+    int ey=SKY_H*8-(int)(((Wide)y*2000)/z);
     int ez=(int)((30000LL*65536)/z);
     if(actual.x!=ex||actual.y!=ey||actual.z!=ez){fprintf(stderr,"Projection mismatch: %d %d %d\n",x,y,z);exit(1);}
 }

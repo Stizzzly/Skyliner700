@@ -27,7 +27,8 @@ for path in paths:
     symbols = subprocess.check_output([str(nm), '-u', str(path)], text=True, errors='replace')
     division = [line.strip() for line in symbols.splitlines() if re.search(r'__(?:u?div|u?mod|aeabi_.*div)', line)]
     print(path.name + ': ARM32; integer division dependencies: ' + (', '.join(division) or 'none'))
-print('PASS: all seven objects disassemble as 32-bit ARM instructions; no Thumb instructions found.')
+assert 'SkyScale2x' not in output and 'SkyScaleRows' not in output, 'Obsolete scene scaler remains in native objects'
+print('PASS: all seven objects use ARM32; no Thumb or obsolete scene scaler symbols.')
 
 assembly = subprocess.check_output([str(objdump), '-dr', str(objects / 'SOFT3D.o')], text=True, errors='replace')
 # Keep local .L labels inside the body; stop at the next named C++ function.

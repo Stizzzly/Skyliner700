@@ -120,7 +120,7 @@ public:
         for(TInt n=0;n<region->Count();++n){
             TRect r=rectangles[n];r.Move(-iScreenOrigin.iX,-iScreenOrigin.iY);
             if(menu)SkyPresentRect(source,sourceStride,screen,iScreenStride,
-                                  r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,false);
+                                  r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
             else{
                 SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
                 SkyPaintHudRect(iHud,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
@@ -223,7 +223,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.40"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.41"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
