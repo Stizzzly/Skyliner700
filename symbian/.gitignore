@@ -1,0 +1,10 @@
+/Skyliner700.sis
+/Skyliner700-preview.exe
+/group/ABLD.BAT
+/group/skyliner.generated.pkg
+/tests/*.exe
+/tests/*.ppm
+
+# Python checks and local editor files
+__pycache__/
+*.py[cod]

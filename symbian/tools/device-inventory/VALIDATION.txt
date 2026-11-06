@@ -1,0 +1,8 @@
+DeviceInventory 0.1.1
+Original S60 SDK 2.0 ARMI UREL build: PASS
+Separate UID 0F700662 / ARM APP+RSC legacy SIS / SDK identity: PASS
+Native imports: TFind iterators and CSendAppUi
+Native imports exclude LoadLogicalDevice/DoCreate/DoControl/DoRequest/CaptureEventHook
+0.1.0 device result: 9 LDD objects, 5 PDD objects, 9 ROM LDD files
+0.1.1 Bluetooth export: not yet tested on device
+SHA256 SIS: ce5bf9e32be671e126c86a6b408f2361119626b3ef2e4cbd75097dcfac94354d

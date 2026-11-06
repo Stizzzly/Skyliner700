@@ -1,0 +1,7 @@
+; Development UID, for private testing only. Build from this directory.
+&EN
+#{"Skyliner700"},(0x0F700660),0,1,45
+(0x101F7960),0,0,0,{"Series60ProductID"}
+"@APP@"-"!:\system\apps\Skyliner700\Skyliner700.app"
+"@RSC@"-"!:\system\apps\Skyliner700\Skyliner700.rsc"
+"@AIF@"-"!:\system\apps\Skyliner700\Skyliner700.aif"

@@ -1,0 +1,44 @@
+Version 0.1.45: restored raster edge loop and Raw transforms
+RasterScreen verified identical to 0.1.43 except conditional dzy and hoisted checkHud
+No bound-product guards, extra early rejection or lazy inverse in the row loop
+Aircraft transform and all five Distance planes use ordered saturating Raw arithmetic
+Distance matches original Fix formulas for 1 million full-range random vectors,
+signed limits and plane boundaries (all five distances compared)
+Terrain Z product hoisted per tz; common-four-vertex cell rejection
+10000 triangles vs independent per-pixel color/Z oracle PASS
+Both modes, HUD, single-row/clipped/degenerate/oversized edges, strides/guards
+0.1.44 FPS regression reported by user, exact values unspecified
+All previous 0.1.43 renderer/runtime checks retained:
+Reciprocal remainder: 32-bit for d<=858993459, exact wide fallback above
+Threshold and numerator-limit tests PASS; two million random projections PASS
+Terrain X/Z and runway-marking X/Y caches preserve saturation/order
+Both ordinary render modes preserve previous checksums: native af33ac27, half 86c26771
+160 mode-switch renders and stride/inactive-region guards PASS
+160 direct-screen/fallback/snapshot cases PASS: all pixels outside HUD exact
+Opaque HUD, odd/even stride, halfword parity and outer guards preserved
+Pause RAM snapshot after direct frame matches full normal frame
+Four-pair sky fill with alignment and tail handling; native packed stores audited
+Original 0.1.7 renderer comparison, scalar/paired spans and coverage oracle PASS
+12000 clipping cases, 1000 quads, 10000 runway poses PASS
+HUD/menu/framebuffer/input/physics/terrain regressions PASS
+Shared Wait/Dispatch protocol: quiet flight, 100-completion bounded burst,
+consumed blocking wake, late AO/WS completion, no lost batch, exit PASS
+Ordinary Frame: one clock; unused render/present profiling fields removed
+Native direct render only for focused valid DSA with one full-screen region
+Partial regions and X2 retain RAM + clipped presentation
+DSA AbortNow clears raw address; Restart/focus rebuild pause snapshot/menu
+DisplayLog only on HAL/validation error; no success-path file write
+Seven ARM32 objects: no floating-point helpers or global constructors
+Project and RasterScreen: no division/modulo helpers
+PHYSICS/FIXED/TERRAIN: no division/modulo imports
+SOFT3D still imports __divdi3 for clipping intersections (unchanged)
+Actual ARM RawAdd/Sub: 20162 boundary/random results PASS
+Actual ARM RawMul: 30289 full-range/boundary products PASS
+Actual ARM span code: 10000 kernel/wrapper ABI/guards/mask cases PASS
+Legacy SIS compressed APP/RSC/AIF + application UIDs PASS
+Prior phone baselines: 0.1.41 native 35 ground FPS; 0.1.40 X2 60 ground FPS
+2026-11-06 user-reported Nokia 6600 ground FPS: native 40-41; X2 61
+Previous user comparison: X2 58; earlier 0.1.41 native baseline 35
+0.1.45 FPS in both modes PENDING; notifications, focus/DSA restart and exit PENDING
+The host tests do not emulate WSERV/DSA or ARM920T memory/cache timing.
+SHA256 SIS: 3c84f230625588c8f342817de68ef11ebce5d120e772f1df48fe3a920bcb1412

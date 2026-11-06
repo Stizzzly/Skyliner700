@@ -1,0 +1,5 @@
+&EN
+#{"KeyHookProbe"},(0x0F700661),0,1,0
+(0x101F7960),0,0,0,{"Series60ProductID"}
+"@APP@"-"!:\system\apps\KeyHookProbe\KeyHookProbe.app"
+"@RSC@"-"!:\system\apps\KeyHookProbe\KeyHookProbe.rsc"

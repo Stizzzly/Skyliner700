@@ -1,0 +1,5 @@
+&EN
+#{"SystemDump"},(0x0F700663),0,2,1
+(0x101F7960),0,0,0,{"Series60ProductID"}
+"@APP@"-"!:\system\apps\SystemDump\SystemDump.app"
+"@RSC@"-"!:\system\apps\SystemDump\SystemDump.rsc"

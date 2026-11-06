@@ -1,0 +1,13 @@
+TARGET Skyliner700.app
+TARGETTYPE app
+EXPORTUNFROZEN
+UID 0x100039CE 0x0F700660
+TARGETPATH \system\apps\Skyliner700
+SOURCEPATH ..\src
+SOURCE symbian.cpp soft3d.cpp physics.cpp terrain.cpp fixed.cpp menu.cpp hud.cpp
+USERINCLUDE ..\src ..\upstream ..\upstream\game ..\upstream\world
+SYSTEMINCLUDE \epoc32\include \epoc32\include\libc
+RESOURCE Skyliner700.rss
+LIBRARY euser.lib apparc.lib cone.lib eikcore.lib avkon.lib
+LIBRARY ws32.lib gdi.lib fbscli.lib bitgdi.lib efsrv.lib hal.lib
+AIF Skyliner700.aif ..\aif Skyliner700Aif.rss c12 icon44.bmp icon44_mask.bmp icon42.bmp icon42_mask.bmp

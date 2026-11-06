@@ -1,0 +1,5 @@
+&EN
+#{"DumpCleanup"},(0x0F700664),0,1,0
+(0x101F7960),0,0,0,{"Series60ProductID"}
+"@APP@"-"!:\system\apps\DumpCleanup\DumpCleanup.app"
+"@RSC@"-"!:\system\apps\DumpCleanup\DumpCleanup.rsc"

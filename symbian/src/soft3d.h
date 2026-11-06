@@ -1,0 +1,41 @@
+#ifndef SKY_SOFT3D_H
+#define SKY_SOFT3D_H
+#include "game/flight.h"
+enum { SKY_W=176, SKY_H=208, SKY_DISPLAY_W=176, SKY_DISPLAY_H=208 };
+typedef unsigned short Pixel;
+// Plain Q16.16 storage: no Fix constructors/zeroing for temporary vectors.
+struct Vec { int x,y,z; };
+struct Screen { int x,y,z; };
+class Soft3D {
+public:
+    Soft3D();
+    void SetHalfResolution(bool half){halfResolution=half;width=half?88:176;height=half?104:208;}
+    int Width()const{return width;}
+    int Height()const{return height;}
+    bool HalfResolution()const{return halfResolution;}
+    void Render(Pixel* pixels, int stride, const FlightState& state,bool screenHud=false);
+    void Triangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
+private:
+    Pixel depth[SKY_W*SKY_H];
+    Vec terrain[9*9];
+    Vec terrainView[9*9];
+    Screen terrainScreen[9*9];
+    unsigned char terrainCodes[9*9];
+    int terrainX,terrainZ;
+    bool halfResolution;int width,height;
+    Pixel* target;
+    int pitch;
+    int depthBias;
+    bool screenHud;
+    Vec eye,right,up,forward;
+    Vec View(const Vec& p) const;
+    unsigned Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color);
+    unsigned ViewQuad(const Vec* view,Pixel color);
+    unsigned RunwayMarkingsOutside(unsigned mask) const;
+    void DrawCachedTriangle(const Vec* view,const Screen* screen,const unsigned char* codes,int a,int b,int c,Pixel color);
+    void ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
+    void ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color,unsigned clipMask);
+    void Raster(const Vec& a,const Vec& b,const Vec& c,Pixel color);
+    void RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel color);
+};
+#endif

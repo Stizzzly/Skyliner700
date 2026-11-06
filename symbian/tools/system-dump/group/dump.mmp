@@ -1,0 +1,12 @@
+TARGET SystemDump.app
+TARGETTYPE app
+EXPORTUNFROZEN
+UID 0x100039CE 0x0F700663
+TARGETPATH \system\apps\SystemDump
+SOURCEPATH ..\src
+SOURCE dump.cpp
+USERINCLUDE ..\src
+SYSTEMINCLUDE \epoc32\include
+SYSTEMINCLUDE \epoc32\include\libc
+RESOURCE SystemDump.rss
+LIBRARY euser.lib apparc.lib cone.lib eikcore.lib avkon.lib ws32.lib gdi.lib efsrv.lib bafl.lib irobex.lib esock.lib bluetooth.lib btextnotifiers.lib btmanclient.lib sdpagent.lib sdpdatabase.lib

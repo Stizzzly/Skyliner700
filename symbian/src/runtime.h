@@ -1,0 +1,106 @@
+#ifndef SKY_RUNTIME_H
+#define SKY_RUNTIME_H
+// Preserve consumed semaphore signals until the auxiliary AO batch runs.
+// A full batch remains pending even if all its semaphore signals were drained.
+class AuxDispatchGate {
+    bool pending;
+public:
+    AuxDispatchGate():pending(true){}
+    void Observe(bool signalled){if(signalled)pending=true;}
+    bool Ready()const{return pending;}
+    void Begin(){pending=false;}
+    void BatchLimit(){pending=true;}
+};
+// Host supplies the OS calls, so the real wake/batch protocol can also be
+// exercised with queued completions and adversarial arrival times on desktop.
+template<class Host> void WaitGameRequests(Host& host,AuxDispatchGate& aux){
+    int drained=0;
+    while(drained<64&&host.RequestCount()>0){host.WaitForAnyRequest();++drained;}
+    aux.Observe(drained>0||host.EventReady());
+    if(!drained&&!host.ContinuousFrames()&&!host.EventReady()&&!aux.Ready()){
+        host.WaitForAnyRequest();aux.Observe(true);
+    }
+}
+template<class Host> void DispatchGameReadyL(Host& host,AuxDispatchGate& aux){
+    // A late non-WS completion retains its semaphore signal for the next Wait.
+    // Avoid a second RequestCount system call on every ordinary flight frame.
+    aux.Observe(host.EventReady());
+    if(!aux.Ready())return;
+    aux.Begin();
+    for(int n=0;n<32&&!host.Quitting();++n){
+        if(!host.RunAuxRequestL())break;
+        if(n==31)aux.BatchLimit();
+    }
+}
+// Wait blocks only in menus/background. Drain a bounded input batch before
+// auxiliary AOs and the next uncapped frame; no post-frame sleep.
+template<class Host> void PumpGameRequestsL(Host& host){
+    host.Wait();
+    for(int n=0;n<32&&!host.Quitting()&&host.EventReady();++n)host.ReadEventL();
+    host.DispatchReadyL();
+    if(!host.Quitting()&&host.FrameReady())host.DrawFrameL();
+}
+// WS down/up edges accumulate until the frame takes one coherent snapshot.
+// A down+up between frames preserves both edges; typematic downs add none.
+class FlightButtons {
+public:
+    enum Button {PitchUp=1,PitchDown=2,RollLeft=4,RollRight=8,
+        ThrottleUp=16,ThrottleDown=32,YawRight=64,YawLeft=128,
+        Select=256,Exit=512,Reset=1024,MenuUp=2048,MenuDown=4096};
+    struct Snapshot {unsigned held,pressed,released;};
+    FlightButtons(){Clear();}
+    void ChangeScan(unsigned scan,unsigned mask,bool down){
+        if(scan>=256||!mask)return;
+        if(down==bool(scans[scan]))return;
+        scans[scan]=down?1:0;
+        // Several physical keys can select the same action (5/joystick/softkey).
+        // Releasing one must not release another that is still held.
+        unsigned bit=mask;int index=0;
+        while((bit>>1)!=0){bit>>=1;++index;}
+        if(index>=13)return;
+        if(down){if(++counts[index]==1)Change(mask,true);}
+        else if(counts[index]&&--counts[index]==0)Change(mask,false);
+    }
+    void Change(unsigned mask,bool down){
+        if(down){pressed|=mask&~held;held|=mask;}
+        else {released|=mask&held;held&=~mask;}
+    }
+    Snapshot Take(){Snapshot s={held,pressed,released};pressed=0;released=0;return s;}
+    void Clear(){held=0;pressed=0;released=0;for(int i=0;i<256;++i)scans[i]=0;for(int j=0;j<13;++j)counts[j]=0;}
+private:
+    unsigned held,pressed,released;
+    unsigned char scans[256],counts[13];
+};
+// Session/interval template permits testing the actual lifecycle without WSERV.
+template<class Session,class Interval> class KeyRepeatGuard {
+    bool saved;Interval initial,period;
+public:
+    KeyRepeatGuard():saved(false),initial(0),period(0){}
+    void Update(bool active,Session& session){
+        if(active&&!saved){
+            session.GetKeyboardRepeatRate(initial,period);
+            // These are durations, not booleans. Avoid undefined zero semantics.
+            Interval delayed(2147483647);
+            session.SetKeyboardRepeatRate(delayed,delayed);saved=true;
+        }else if(!active)Restore(session);
+    }
+    void Restore(Session& session){
+        if(saved){session.SetKeyboardRepeatRate(initial,period);saved=false;}
+    }
+};
+// Count frame intervals over real time; avoid integer-EMA bias near 30 FPS.
+class FrameRateCounter {
+    int elapsed,frames,value;
+public:
+    FrameRateCounter():elapsed(0),frames(0),value(0){}
+    void Reset(){elapsed=0;frames=0;}
+    int Add(int microseconds){
+        if(microseconds<=0||microseconds>2000000){Reset();return value;}
+        elapsed+=microseconds;++frames;
+        if(elapsed>=1000000||frames>=1000){
+            value=(frames*1000000+elapsed/2)/elapsed;Reset();
+        }
+        return value;
+    }
+};
+#endif
