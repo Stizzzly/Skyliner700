@@ -7,12 +7,22 @@
 #include <stdlib.h>
 static Soft3D renderer;
 static Pixel pixels[SKY_W*SKY_H],expected[SKY_W*SKY_H],expectedDepth[SKY_W*SKY_H];
+static Fix ReferenceDistance(const Vec& p,int plane){
+    switch(plane){
+    case 0:return Fix::Raw(p.z)-Fix::Raw(131072);
+    case 1:return Fix::Raw(p.x)+Fix::Raw(p.z)*Fix::Raw(46137);
+    case 2:return -Fix::Raw(p.x)+Fix::Raw(p.z)*Fix::Raw(46137);
+    case 3:return Fix::Raw(p.y)+Fix::Raw(p.z)*Fix::Raw(54526);
+    default:return -Fix::Raw(p.y)+Fix::Raw(p.z)*Fix::Raw(54526);
+    }
+}
 static unsigned ReferenceOutcode(const Vec& v){
     unsigned code=0;
-    for(int plane=0;plane<5;++plane)if(Distance(v,plane)<0)code|=1u<<plane;
+    for(int plane=0;plane<5;++plane)if(ReferenceDistance(v,plane)<0)code|=1u<<plane;
     return code;
 }
 static void CheckOutcode(const Vec& v){
+    for(int plane=0;plane<5;++plane)if(Distance(v,plane).raw!=ReferenceDistance(v,plane).raw){fprintf(stderr,"Raw Distance mismatch plane %d\n",plane);exit(1);}
     if(Outcode(v)!=ReferenceOutcode(v)){fprintf(stderr,"Outcode mismatch %d %d %d\n",v.x,v.y,v.z);exit(1);}
 }
 static void Reference(const Vec& a,const Vec& b,const Vec& c){
@@ -23,7 +33,7 @@ static void Reference(const Vec& a,const Vec& b,const Vec& c){
     for(int plane=0;plane<5;++plane){
         int n=0;
         for(int i=0;i<count;++i){
-            Vec s=p[i],e=p[(i+1)%count];Fix ds=Distance(s,plane),de=Distance(e,plane);
+            Vec s=p[i],e=p[(i+1)%count];Fix ds=ReferenceDistance(s,plane),de=ReferenceDistance(e,plane);
             if(ds>=0)q[n++]=s;
             if((ds<0)!=(de<0))q[n++]=Add(s,Mul(Sub(e,s),ds/(ds-de)));
         }

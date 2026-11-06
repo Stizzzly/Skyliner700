@@ -1,10 +1,13 @@
-Version 0.1.44: guarded span bounds and lazy edge reciprocals
+Version 0.1.45: restored raster edge loop and Raw transforms
+RasterScreen verified identical to 0.1.43 except conditional dzy and hoisted checkHud
+No bound-product guards, extra early rejection or lazy inverse in the row loop
+Aircraft transform and all five Distance planes use ordered saturating Raw arithmetic
+Distance matches original Fix formulas for 1 million full-range random vectors,
+signed limits and plane boundaries (all five distances compared)
+Terrain Z product hoisted per tz; common-four-vertex cell rejection
 10000 triangles vs independent per-pixel color/Z oracle PASS
 Both modes, HUD, single-row/clipped/degenerate/oversized edges, strides/guards
-EdgeFloor calls 1862767 -> 1616539; edge inverses 26269 -> 24229
-1436 single-row cases; skipped unused dzy
-Oversized divisors retain exact old bound path; first>last terminates edge loop
-Production ARM32 uses MUL; test counters absent from phone binary
+0.1.44 FPS regression reported by user, exact values unspecified
 All previous 0.1.43 renderer/runtime checks retained:
 Reciprocal remainder: 32-bit for d<=858993459, exact wide fallback above
 Threshold and numerator-limit tests PASS; two million random projections PASS
@@ -36,6 +39,6 @@ Legacy SIS compressed APP/RSC/AIF + application UIDs PASS
 Prior phone baselines: 0.1.41 native 35 ground FPS; 0.1.40 X2 60 ground FPS
 2026-11-06 user-reported Nokia 6600 ground FPS: native 40-41; X2 61
 Previous user comparison: X2 58; earlier 0.1.41 native baseline 35
-0.1.44 FPS in both modes PENDING; notifications, focus/DSA restart and exit PENDING
+0.1.45 FPS in both modes PENDING; notifications, focus/DSA restart and exit PENDING
 The host tests do not emulate WSERV/DSA or ARM920T memory/cache timing.
-SHA256 SIS: b5ec91843316b088881af3f2f90ef7865336fc170d02ad32a2c80173416c5e5c
+SHA256 SIS: 3c84f230625588c8f342817de68ef11ebce5d120e772f1df48fe3a920bcb1412

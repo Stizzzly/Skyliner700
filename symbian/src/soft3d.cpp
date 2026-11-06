@@ -109,11 +109,11 @@ Vec Soft3D::View(const Vec& p) const {
    terrain crosses the eye. Focal length 125; screen centre (88,104). */
 static inline Fix Distance(const Vec& p,int plane) {
     switch(plane) {
-    case 0:return Fix::Raw(p.z)-Fix::Raw(131072);
-    case 1:return Fix::Raw(p.x)+Fix::Raw(p.z)*Fix::Raw(46137);
-    case 2:return -Fix::Raw(p.x)+Fix::Raw(p.z)*Fix::Raw(46137);
-    case 3:return Fix::Raw(p.y)+Fix::Raw(p.z)*Fix::Raw(54526);
-    default:return -Fix::Raw(p.y)+Fix::Raw(p.z)*Fix::Raw(54526);
+    case 0:return Fix::Raw(RawSub(p.z,131072));
+    case 1:return Fix::Raw(RawAdd(p.x,RawMul(p.z,46137)));
+    case 2:return Fix::Raw(RawAdd(RawSub(0,p.x),RawMul(p.z,46137)));
+    case 3:return Fix::Raw(RawAdd(p.y,RawMul(p.z,54526)));
+    default:return Fix::Raw(RawAdd(RawSub(0,p.y),RawMul(p.z,54526)));
     }
 }
 void Soft3D::Triangle(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
@@ -294,9 +294,6 @@ void Soft3D::Raster(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     Screen aScreen=Project(a,halfResolution),bScreen=Project(b,halfResolution),cScreen=Project(c,halfResolution);
     RasterScreen(aScreen,bScreen,cScreen,color);
 }
-#ifdef SKY_TEST_RASTER_COUNTS
-static unsigned rasterEdgeFloors=0,rasterEdgeInverses=0,rasterSingleRows=0;
-#endif
 void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel color){
     Screen s[3];s[0]=a;s[1]=b;s[2]=c;
     int area=Edge(s[0],s[1],s[2].x,s[2].y);
@@ -312,9 +309,6 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     if(miny<0)miny=0;
     if(maxy>=height)maxy=height-1;
     if(minx>maxx||miny>maxy)return;
-#ifdef SKY_TEST_RASTER_COUNTS
-    if(miny==maxy)++rasterSingleRows;
-#endif
     int row[3],dx[3],dy[3];
     const int sampleX=minx*16+8,sampleY=miny*16+8;
     row[0]=Edge(s[1],s[2],sampleX,sampleY);
@@ -330,18 +324,15 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
 #ifndef SKY_REFERENCE_RASTER
     // Apply the constant only after the unbiased plane gradients were rounded.
     rowz+=depthBias*256;
-    unsigned edgeDivisor[3];UWide edgeInverse[3]={0,0,0};
+    unsigned edgeDivisor[3];UWide edgeInverse[3];
     for(int edge=0;edge<3;++edge){
         int step=dx[edge];edgeDivisor[edge]=(unsigned)(step<0?-step:step);
+        edgeInverse[edge]=step?EdgeInverse(edgeDivisor[edge]):0;
     }
     // Keep base-of-row pointers so the final increment is at most one-past-end.
     Pixel* dstRow=target+miny*pitch;
     Pixel* zRow=depth+miny*width;
-    const int maxSpan=maxx-minx;
     const bool checkHud=screenHud&&maxy>=SKY_HUD_TOP&&miny<SKY_HUD_BOTTOM;
-    // Normal clipped edges are much smaller. Retain the exact old path for
-    // oversized screen-space inputs rather than overflowing a bound product.
-    const unsigned maxProductDivisor=0xffffffffu/(SKY_W-1);
 #endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
@@ -353,43 +344,16 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             w0+=dx[0];w1+=dx[1];w2+=dx[2];z+=dzx;
         }
 #else
-        int first=0,last=maxSpan;
+        int first=0,last=maxx-minx;
         for(int edge=0;edge<3;++edge){
             int w=row[edge],step=dx[edge];
             if(w<0){
                 if(step<=0){last=-1;break;}
-                unsigned u=(unsigned)(-(w+1)),d=edgeDivisor[edge];
-                if(d>maxProductDivisor||u>=(unsigned)first*d){
-                    if(!edgeInverse[edge]){
-                        edgeInverse[edge]=EdgeInverse(d);
-#ifdef SKY_TEST_RASTER_COUNTS
-                        ++rasterEdgeInverses;
-#endif
-                    }
-#ifdef SKY_TEST_RASTER_COUNTS
-                    ++rasterEdgeFloors;
-#endif
-                    int bound=(int)EdgeFloor(u,d,edgeInverse[edge])+1;
-                    if(bound>first)first=bound;
-                    // Keep both multipliers in [0,maxSpan] for the next edge.
-                    if(first>last)break;
-                }
+                int bound=(int)EdgeFloor((unsigned)(-(w+1)),edgeDivisor[edge],edgeInverse[edge])+1;
+                if(bound>first)first=bound;
             }else if(step<0){
-                unsigned u=(unsigned)w,d=edgeDivisor[edge];
-                if(d>maxProductDivisor||u<(unsigned)last*d){
-                    if(!edgeInverse[edge]){
-                        edgeInverse[edge]=EdgeInverse(d);
-#ifdef SKY_TEST_RASTER_COUNTS
-                        ++rasterEdgeInverses;
-#endif
-                    }
-#ifdef SKY_TEST_RASTER_COUNTS
-                    ++rasterEdgeFloors;
-#endif
-                    int bound=(int)EdgeFloor(u,d,edgeInverse[edge]);
-                    if(bound<last)last=bound;
-                    if(first>last)break;
-                }
+                int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);
+                if(bound<last)last=bound;
             }
         }
         if(first<=last){
@@ -436,19 +400,23 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s,bool protectHu
         xProducts[i]=V(Fix::Raw(RawMul(x,right.x)),Fix::Raw(RawMul(x,up.x)),Fix::Raw(RawMul(x,forward.x)));
         zProducts[i]=V(Fix::Raw(RawMul(z,right.z)),Fix::Raw(RawMul(z,up.z)),Fix::Raw(RawMul(z,forward.z)));
     }
-    for(int tz=0;tz<9;++tz)for(int tx=0;tx<9;++tx){
+    for(int tz=0;tz<9;++tz){
+      const Vec z=zProducts[tz];
+      for(int tx=0;tx<9;++tx){
         int vertex=tz*9+tx,y=RawSub(terrain[vertex].y,eye.y);
-        Vec& v=terrainView[vertex];const Vec& x=xProducts[tx];const Vec& z=zProducts[tz];
+        Vec& v=terrainView[vertex];const Vec& x=xProducts[tx];
         v.x=RawAdd(x.x,z.x);
         v.y=RawAdd(RawAdd(x.y,RawMul(y,up.y)),z.y);
         v.z=RawAdd(RawAdd(x.z,RawMul(y,forward.y)),z.z);
         terrainCodes[vertex]=(unsigned char)Outcode(v);
         if(!terrainCodes[vertex])terrainScreen[vertex]=Project(v,halfResolution);
+      }
     }
     for(int iz=-4;iz<4;++iz)for(int ix=-4;ix<4;++ix){
         int base=(iz+4)*9+ix+4;
         unsigned ca=terrainCodes[base],cb=terrainCodes[base+1];
         unsigned cc=terrainCodes[base+10],cd=terrainCodes[base+9];
+        if(ca&cb&cc&cd)continue;
         Pixel col=((ix+iz)&1)?RGB(71,112,53):RGB(79,123,60);
         // Reject before copying camera vertices; reuse the per-grid outcodes.
         if(ca&cb&cc){}
@@ -486,11 +454,17 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s,bool protectHu
     Fix sp=(Fix)FxSin(s.pitch),cp=(Fix)FxCos(s.pitch),sr=(Fix)FxSin(s.roll),cr=(Fix)FxCos(s.roll);
     Vec view[PLANE_VERTEX_COUNT];Screen screen[PLANE_VERTEX_COUNT];unsigned char codes[PLANE_VERTEX_COUNT];
     for(int i=0;i<PLANE_VERTEX_COUNT;++i){
-        Fix px=Fix::Raw(plane[i].x),py=Fix::Raw(plane[i].y),pz=Fix::Raw(plane[i].z);
-        // Preserve the original fixed-point operation order exactly.
-        Fix x=px*cr+py*sr,y=-px*sr+py*cr;
-        Fix yy=y*cp-pz*sp,zz=y*sp+pz*cp;
-        view[i]=View(V(s.x+x*cy-zz*sy,s.y+yy,s.z+x*sy+zz*cy));
+        const int px=plane[i].x,py=plane[i].y,pz=plane[i].z;
+        // Negation precedes multiplication; saturation/rounding order is unchanged.
+        int x=RawAdd(RawMul(px,cr.raw),RawMul(py,sr.raw));
+        int y=RawAdd(RawMul(RawSub(0,px),sr.raw),RawMul(py,cr.raw));
+        int yy=RawSub(RawMul(y,cp.raw),RawMul(pz,sp.raw));
+        int zz=RawAdd(RawMul(y,sp.raw),RawMul(pz,cp.raw));
+        Vec world;
+        world.x=RawSub(RawAdd(s.x.raw,RawMul(x,cy.raw)),RawMul(zz,sy.raw));
+        world.y=RawAdd(s.y.raw,yy);
+        world.z=RawAdd(RawAdd(s.z.raw,RawMul(x,sy.raw)),RawMul(zz,cy.raw));
+        view[i]=View(world);
         codes[i]=(unsigned char)Outcode(view[i]);
         if(!codes[i])screen[i]=Project(view[i],halfResolution);
     }

@@ -1,5 +1,4 @@
 // Compare span bounds with an independent per-pixel edge/plane oracle.
-#define SKY_TEST_RASTER_COUNTS
 #define private public
 #include "../src/soft3d.cpp"
 #undef private
@@ -7,7 +6,7 @@
 #include <stdlib.h>
 static Soft3D renderer;
 static Pixel actual[(SKY_W+3)*SKY_H+32],expected[(SKY_W+3)*SKY_H+32],expectedZ[SKY_W*SKY_H];
-static unsigned oldFloors=0,oldInverses=0;
+static unsigned singleRows=0;
 static void Check(bool ok,const char* message){if(!ok){fprintf(stderr,"FAIL: %s\n",message);exit(1);}}
 static void Reference(Screen a,Screen b,Screen c,Pixel color){
     Screen s[3]={a,b,c};int area=Edge(a,b,c.x,c.y);
@@ -16,24 +15,21 @@ static void Reference(Screen a,Screen b,Screen c,Pixel color){
     int minx=s[0].x,maxx=minx,miny=s[0].y,maxy=miny;
     for(int i=1;i<3;++i){if(s[i].x<minx)minx=s[i].x;if(s[i].x>maxx)maxx=s[i].x;if(s[i].y<miny)miny=s[i].y;if(s[i].y>maxy)maxy=s[i].y;}
     minx=minx/16;maxx=(maxx+15)/16;miny=miny/16;maxy=(maxy+15)/16;
-    if(minx<0)minx=0;if(maxx>=renderer.width)maxx=renderer.width-1;
-    if(miny<0)miny=0;if(maxy>=renderer.height)maxy=renderer.height-1;
+    if(minx<0)minx=0;
+    if(maxx>=renderer.width)maxx=renderer.width-1;
+    if(miny<0)miny=0;
+    if(maxy>=renderer.height)maxy=renderer.height-1;
     if(minx>maxx||miny>maxy)return;
+    if(miny==maxy)++singleRows;
     int row[3],dx[3],dy[3];
     for(int e=0;e<3;++e){Screen u=s[(e+1)%3],v=s[(e+2)%3];
         row[e]=Edge(u,v,minx*16+8,miny*16+8);dx[e]=-(v.y-u.y)*16;dy[e]=(v.x-u.x)*16;
-        if(dx[e])++oldInverses;
     }
     // Direct integer division is an independent reference for plane setup.
     int dzx=(int)((((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256)/area);
     int dzy=(int)((((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256)/area);
     int rowz=(int)((((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256)/area);
     for(int y=miny;y<=maxy;++y){
-        // Count precisely the old edge-bound divisions, independently of pixels.
-        for(int e=0;e<3;++e){
-            if(row[e]<0){if(dx[e]<=0)break;++oldFloors;}
-            else if(dx[e]<0)++oldFloors;
-        }
         int w0=row[0],w1=row[1],w2=row[2],z=rowz;
         for(int x=minx;x<=maxx;++x){
             bool hud=renderer.screenHud&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM&&x>=SKY_HUD_LEFT&&x<SKY_HUD_RIGHT;
@@ -43,7 +39,8 @@ static void Reference(Screen a,Screen b,Screen c,Pixel color){
             }
             w0+=dx[0];w1+=dx[1];w2+=dx[2];z+=dzx;
         }
-        for(int e=0;e<3;++e)row[e]+=dy[e];rowz+=dzy;
+        for(int e=0;e<3;++e)row[e]+=dy[e];
+        rowz+=dzy;
     }
 }
 int main(){
@@ -80,9 +77,7 @@ int main(){
             fprintf(stderr,"FAIL: raster oracle mismatch mode=%d hud=%d sample=%d\n",mode,hud,sample);return 1;
         }
     }
-    Check(rasterSingleRows>0,"single-row optimization was exercised");
-    Check(rasterEdgeFloors<oldFloors,"bound guards did not remove EdgeFloor calls");
-    Check(rasterEdgeInverses<oldInverses,"lazy edge reciprocals did not remove work");
+    Check(singleRows>0,"single-row optimization was exercised");
     printf("PASS: 10000 triangles match per-pixel color/Z oracle, both resolutions/HUD modes, clipped single rows, gradients, winding, degenerate/oversized edges and all guards.\n");
-    printf("EdgeFloor %u -> %u; edge inverses %u -> %u; single-row triangles %u (operation counts, not CPU timing).\n",oldFloors,rasterEdgeFloors,oldInverses,rasterEdgeInverses,rasterSingleRows);
+
 }
