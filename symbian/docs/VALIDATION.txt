@@ -27,6 +27,8 @@ Actual ARM RawMul: 30289 full-range/boundary products PASS
 Actual ARM span code: 10000 kernel/wrapper ABI/guards/mask cases PASS
 Legacy SIS compressed APP/RSC/AIF + application UIDs PASS
 Prior phone baselines: 0.1.41 native 35 ground FPS; 0.1.40 X2 60 ground FPS
-0.1.43 actual-phone FPS, notifications, focus/DSA restart and exit PENDING
+2026-11-06 user-reported Nokia 6600 ground FPS: native 40-41; X2 61
+Previous user comparison: X2 58; earlier 0.1.41 native baseline 35
+0.1.43 takeoff/turn FPS, notifications, focus/DSA restart and exit PENDING
 The host tests do not emulate WSERV/DSA or ARM920T memory/cache timing.
 SHA256 SIS: b5385fae487b41d9e04274b881487fb931e922f58732a48e0285367e54f61dbe
