@@ -156,6 +156,15 @@ void Soft3D::ClipIntersectingTriangle(const Vec& a,const Vec& b,const Vec& c,Pix
     }
     for(int k=1;k<count-1;++k)Raster(p[0],p[k],p[k+1],color);
 }
+// Projection contract: denom>=131072, inv=floor(2^40/denom), fits unsigned.
+static inline unsigned ReciprocalDivideU32(unsigned magnitude,unsigned denom,unsigned inv){
+    unsigned q=(unsigned)(((UWide)magnitude*inv)>>40);
+    // q never overestimates: q*denom<=magnitude<=UINT_MAX. The reciprocal
+    // error is <magnitude/2^40<1/256 quotient units, so at most one correction.
+    unsigned remainder=magnitude-q*denom;
+    if(remainder>=denom)++q;
+    return q;
+}
 // Exact quotient from a shared Q40 reciprocal, for magnitudes < 2^42.
 // Split the product to avoid overflowing 64 bits at full-resolution projection.
 // The floor reciprocal underestimates by fewer than four quotient units.
@@ -163,7 +172,12 @@ static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse)
     bool negative=numerator<0;
     UWide magnitude=(UWide)(negative?-numerator:numerator);
     unsigned inv=(unsigned)inverse;
-    UWide high=(((UWide)(unsigned)magnitude*inv)>>32)+(UWide)(unsigned)(magnitude>>32)*inv;
+    unsigned hi=(unsigned)(magnitude>>32);
+    if(!hi){
+        unsigned q=ReciprocalDivideU32((unsigned)magnitude,(unsigned)denominator,inv);
+        return negative?-(int)q:(int)q;
+    }
+    UWide high=(((UWide)(unsigned)magnitude*inv)>>32)+(UWide)hi*inv;
     unsigned q=(unsigned)(high>>8);
     const unsigned denom=(unsigned)denominator;
     // floor(2^40/d) loses <4 quotient units for magnitude<2^42.
@@ -195,7 +209,7 @@ static Screen Project(const Vec& v,bool half=false){
     int focal=half?1000:2000;
     Screen s;s.x=(half?88:176)*8+ReciprocalDivide((Wide)v.x*focal,v.z,inverse);
     s.y=(half?104:208)*8-ReciprocalDivide((Wide)v.y*focal,v.z,inverse);
-    s.z=ReciprocalDivide(30000LL*65536,v.z,inverse);return s;
+    s.z=(int)ReciprocalDivideU32(30000u*65536u,(unsigned)v.z,(unsigned)inverse);return s;
 }
 // Shared classification/projection for vertices referenced by several triangles.
 void Soft3D::DrawCachedTriangle(const Vec* view,const Screen* screen,const unsigned char* codes,int a,int b,int c,Pixel color){

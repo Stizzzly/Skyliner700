@@ -34,8 +34,8 @@ assembly = subprocess.check_output([str(objdump), '-dr', str(objects / 'SOFT3D.o
 # Keep local .L labels inside the body; stop at the next named C++ function.
 project = re.search(r'<Project__FRC3Vecb>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
 assert project, 'Missing native Project function; inspect compiler inlining before updating audit'
-assert not re.search(r'ARM_26\s+__(?:u?div|u?mod|lshrdi)', project.group(1)), 'Projection calls division/modulo/variable-wide-shift helper'
-print('PASS: native Project has no division, modulo or variable 64-bit shift helper calls.')
+assert not re.search(r'ARM_26\s+__(?:u?div|u?mod|muldi3|lshrdi|ashldi)', project.group(1)), 'Projection calls wide-multiply/division/modulo/variable-shift helper'
+print('PASS: native Project has no wide multiplication, division, modulo or variable 64-bit shift helper calls.')
 
 soft_symbols = subprocess.check_output([str(nm), '-u', str(objects / 'SOFT3D.o')], text=True, errors='replace')
 assert not re.search(r'\b__(?:u?divsi3|u?modsi3)\b', soft_symbols), '32-bit division/modulo helper remains in renderer'

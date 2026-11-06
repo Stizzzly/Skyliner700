@@ -1,4 +1,10 @@
-Version 0.1.45: restored raster edge loop and Raw transforms
+Version 0.1.46: U32 projection specialization
+U32 path: one exact correction, no denominator guard or wide remainder fallback
+Proof: q*d<=m<=UINT_MAX, reciprocal quotient error <m/2^40<1/256
+1000000 random U32 quotients and signed generic dispatch comparisons PASS
+Explicit +/-2^32 transitions, near plane, denominator thresholds and numerator limits PASS
+Native Project: hardware UMULL; no __muldi3/division/modulo/variable-wide-shift helpers
+All previous 0.1.45 checks retained:
 RasterScreen verified identical to 0.1.43 except conditional dzy and hoisted checkHud
 No bound-product guards, extra early rejection or lazy inverse in the row loop
 Aircraft transform and all five Distance planes use ordered saturating Raw arithmetic
@@ -39,6 +45,7 @@ Legacy SIS compressed APP/RSC/AIF + application UIDs PASS
 Prior phone baselines: 0.1.41 native 35 ground FPS; 0.1.40 X2 60 ground FPS
 2026-11-06 user-reported Nokia 6600 ground FPS: native 40-41; X2 61
 Previous user comparison: X2 58; earlier 0.1.41 native baseline 35
-0.1.45 FPS in both modes PENDING; notifications, focus/DSA restart and exit PENDING
+0.1.45 user reports improvement, no new FPS values
+0.1.46 FPS in both modes PENDING; notifications, focus/DSA restart and exit PENDING
 The host tests do not emulate WSERV/DSA or ARM920T memory/cache timing.
-SHA256 SIS: 3c84f230625588c8f342817de68ef11ebce5d120e772f1df48fe3a920bcb1412
+SHA256 SIS: c732650ccdc49f526d7bdafb5c5eede18d6e729f1f31802435c6147bc2dc2032
