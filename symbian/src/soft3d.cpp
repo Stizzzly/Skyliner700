@@ -294,6 +294,9 @@ void Soft3D::Raster(const Vec& a,const Vec& b,const Vec& c,Pixel color) {
     Screen aScreen=Project(a,halfResolution),bScreen=Project(b,halfResolution),cScreen=Project(c,halfResolution);
     RasterScreen(aScreen,bScreen,cScreen,color);
 }
+#ifdef SKY_TEST_RASTER_COUNTS
+static unsigned rasterEdgeFloors=0,rasterEdgeInverses=0,rasterSingleRows=0;
+#endif
 void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel color){
     Screen s[3];s[0]=a;s[1]=b;s[2]=c;
     int area=Edge(s[0],s[1],s[2].x,s[2].y);
@@ -309,6 +312,9 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     if(miny<0)miny=0;
     if(maxy>=height)maxy=height-1;
     if(minx>maxx||miny>maxy)return;
+#ifdef SKY_TEST_RASTER_COUNTS
+    if(miny==maxy)++rasterSingleRows;
+#endif
     int row[3],dx[3],dy[3];
     const int sampleX=minx*16+8,sampleY=miny*16+8;
     row[0]=Edge(s[1],s[2],sampleX,sampleY);
@@ -319,19 +325,23 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
     dx[2]=-(s[1].y-s[0].y)*16;dy[2]=(s[1].x-s[0].x)*16;
     UWide inverseArea=AreaInverse((unsigned)area);
     int dzx=(int)AreaDivide(((Wide)dx[0]*s[0].z+(Wide)dx[1]*s[1].z+(Wide)dx[2]*s[2].z)*256,(unsigned)area,inverseArea);
-    int dzy=(int)AreaDivide(((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256,(unsigned)area,inverseArea);
+    int dzy=miny<maxy?(int)AreaDivide(((Wide)dy[0]*s[0].z+(Wide)dy[1]*s[1].z+(Wide)dy[2]*s[2].z)*256,(unsigned)area,inverseArea):0;
     int rowz=(int)AreaDivide(((Wide)row[0]*s[0].z+(Wide)row[1]*s[1].z+(Wide)row[2]*s[2].z)*256,(unsigned)area,inverseArea);
 #ifndef SKY_REFERENCE_RASTER
     // Apply the constant only after the unbiased plane gradients were rounded.
     rowz+=depthBias*256;
-    unsigned edgeDivisor[3];UWide edgeInverse[3];
+    unsigned edgeDivisor[3];UWide edgeInverse[3]={0,0,0};
     for(int edge=0;edge<3;++edge){
         int step=dx[edge];edgeDivisor[edge]=(unsigned)(step<0?-step:step);
-        edgeInverse[edge]=step?EdgeInverse(edgeDivisor[edge]):0;
     }
     // Keep base-of-row pointers so the final increment is at most one-past-end.
     Pixel* dstRow=target+miny*pitch;
     Pixel* zRow=depth+miny*width;
+    const int maxSpan=maxx-minx;
+    const bool checkHud=screenHud&&maxy>=SKY_HUD_TOP&&miny<SKY_HUD_BOTTOM;
+    // Normal clipped edges are much smaller. Retain the exact old path for
+    // oversized screen-space inputs rather than overflowing a bound product.
+    const unsigned maxProductDivisor=0xffffffffu/(SKY_W-1);
 #endif
     for(int y=miny;y<=maxy;++y){
 #ifdef SKY_REFERENCE_RASTER
@@ -343,22 +353,49 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
             w0+=dx[0];w1+=dx[1];w2+=dx[2];z+=dzx;
         }
 #else
-        int first=0,last=maxx-minx;
+        int first=0,last=maxSpan;
         for(int edge=0;edge<3;++edge){
             int w=row[edge],step=dx[edge];
             if(w<0){
                 if(step<=0){last=-1;break;}
-                int bound=(int)EdgeFloor((unsigned)(-(w+1)),edgeDivisor[edge],edgeInverse[edge])+1;
-                if(bound>first)first=bound;
+                unsigned u=(unsigned)(-(w+1)),d=edgeDivisor[edge];
+                if(d>maxProductDivisor||u>=(unsigned)first*d){
+                    if(!edgeInverse[edge]){
+                        edgeInverse[edge]=EdgeInverse(d);
+#ifdef SKY_TEST_RASTER_COUNTS
+                        ++rasterEdgeInverses;
+#endif
+                    }
+#ifdef SKY_TEST_RASTER_COUNTS
+                    ++rasterEdgeFloors;
+#endif
+                    int bound=(int)EdgeFloor(u,d,edgeInverse[edge])+1;
+                    if(bound>first)first=bound;
+                    // Keep both multipliers in [0,maxSpan] for the next edge.
+                    if(first>last)break;
+                }
             }else if(step<0){
-                int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);
-                if(bound<last)last=bound;
+                unsigned u=(unsigned)w,d=edgeDivisor[edge];
+                if(d>maxProductDivisor||u<(unsigned)last*d){
+                    if(!edgeInverse[edge]){
+                        edgeInverse[edge]=EdgeInverse(d);
+#ifdef SKY_TEST_RASTER_COUNTS
+                        ++rasterEdgeInverses;
+#endif
+                    }
+#ifdef SKY_TEST_RASTER_COUNTS
+                    ++rasterEdgeFloors;
+#endif
+                    int bound=(int)EdgeFloor(u,d,edgeInverse[edge]);
+                    if(bound<last)last=bound;
+                    if(first>last)break;
+                }
             }
         }
         if(first<=last){
             int start=minx+first;
             int end=minx+last;
-            if(screenHud&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM){
+            if(checkHud&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM){
                 // Never erase the cached opaque HUD in a direct-screen frame.
                 int leftEnd=end<SKY_HUD_LEFT?end:SKY_HUD_LEFT-1;
                 if(start<=leftEnd)DrawSpan(dstRow+start,zRow+start,leftEnd-start+1,rowz+dzx*first,dzx,color);

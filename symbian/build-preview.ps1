@@ -44,6 +44,10 @@ try {
     if($LASTEXITCODE -ne 0){throw 'Clipping test build failed'}
     & ./tests/clipping-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Clipping differential checks failed'}
+    & $Compiler @baseline tests/raster_bounds_tests.cpp -o tests/raster-bounds-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Raster bound test build failed'}
+    & ./tests/raster-bounds-tests.exe
+    if($LASTEXITCODE -ne 0){throw 'Raster bound color/Z oracle failed'}
     & $Compiler @baseline tests/projection_tests.cpp -o tests/projection-tests.exe
     if($LASTEXITCODE -ne 0){throw 'Projection test build failed'}
     & ./tests/projection-tests.exe
