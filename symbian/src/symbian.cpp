@@ -21,7 +21,7 @@
 const TUid KSkylinerUid={0x0F700660};
 class CFlightView:public CCoeControl,public MDirectScreenAccess {
 public:
-    CFlightView():iMenuBitmap(0),iRenderer(0),iPixels(0),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iScreenBase(0),iScreenStride(0),iMapError(0),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0),iRenderMs(0),iPresentMs(0) {}
+    CFlightView():iMenuBitmap(0),iRenderer(0),iPixels(0),iSnapshotCurrent(ETrue),iMenuDirty(EFalse),iDsa(0),iDsaReady(EFalse),iDsaSuspended(EFalse),iScreenBase(0),iScreenStride(0),iMapError(0),iKeys(0),iPaused(ETrue),iAccum(0),iFps(0) {}
     void ConstructL() {
         CreateWindowL();SetExtentToWholeScreen();
         iMenuBitmap=new(ELeave)CFbsBitmap;
@@ -52,7 +52,7 @@ public:
         // No Window Server calls here: the server is waiting for our return.
         // Never cache Gc()/ScreenDevice() across an abort/restart.
         iScreenBase=0;iScreenStride=0;iDsaReady=EFalse;iDsaSuspended=ETrue;
-        iButtons.Clear();iKeys=0;iAccum=0;iPaused=ETrue;iMenu.Pause();
+        iButtons.Clear();iKeys=0;iAccum=0;iPaused=ETrue;iMenu.Pause();iMenuDirty=ETrue;
     }
     void Restart(RDirectScreenAccess::TTerminationReasons){
         TRAPD(error,StartDsaL());
@@ -81,28 +81,40 @@ public:
         TBuf8<96> legacy;
         legacy.Format(_L8("ScreenInfo valid %d base %08x size %dx%d\r\n"),iLegacyScreen.iScreenAddressValid,
             (TUint)iLegacyScreen.iScreenAddress,iLegacyScreen.iScreenSize.iWidth,iLegacyScreen.iScreenSize.iHeight);
-        report.Append(legacy);DisplayLog(report);User::LeaveIfError(firstError);
-        const TInt mode=iDisplayValues[0],address=iDisplayValues[1],offset=iDisplayValues[2];
+        report.Append(legacy);
+        const TPoint origin=PositionRelativeToScreen();
+        const TInt fbsMode=iDsa->ScreenDevice()->DisplayMode(),orientation=iDsa->ScreenDevice()->Orientation();
+        legacy.Format(_L8("FBS mode %d orientation %d origin %d,%d\r\n"),fbsMode,orientation,origin.iX,origin.iY);
+        report.Append(legacy);
+        if(firstError!=KErrNone){DisplayLog(report);User::Leave(firstError);}
+        const TInt address=iDisplayValues[1],offset=iDisplayValues[2];
         const TInt pitch=iDisplayValues[3],bpp=iDisplayValues[4],rgb=iDisplayValues[5];
-        const TInt landscape=iDisplayValues[6],width=iDisplayValues[7],height=iDisplayValues[8];
+        const TInt width=iDisplayValues[7],height=iDisplayValues[8];
         // LAND is a HAL pixel-order flag, not the FBS graphics orientation.
         // Nokia 6600 reports LAND=1 with 176x208, RGB565, pitch=352, FBS ORI=0.
         // Use the actual dimensions/pitch and FBS orientation for address mapping.
         // Keep the raw flag in diagnostics, but do not reject this measured layout.
         if(!address||offset<0||offset>65536||pitch<width*2||pitch>8192||
            (pitch&1)||bpp!=16||!rgb||width!=SKY_DISPLAY_W||height!=SKY_DISPLAY_H||
-           iDsa->ScreenDevice()->DisplayMode()!=EColor64K||
-           iDsa->ScreenDevice()->Orientation()!=CFbsBitGc::EGraphicsOrientationNormal)
-            User::Leave(KErrNotSupported);
+           fbsMode!=EColor64K||orientation!=CFbsBitGc::EGraphicsOrientationNormal)
+            {DisplayLog(report);User::Leave(KErrNotSupported);}
         const TUint base=(TUint)address,first=base+(TUint)offset;
-        if(first<base||(first&1)||first+(TUint)(pitch*height)<first)User::Leave(KErrArgument);
-        iScreenOrigin=PositionRelativeToScreen();
+        if(first<base||(first&1)||first+(TUint)(pitch*height)<first){DisplayLog(report);User::Leave(KErrArgument);}
+        iScreenOrigin=origin;
         if(iScreenOrigin.iX<0||iScreenOrigin.iY<0||
            iScreenOrigin.iX+SKY_DISPLAY_W>width||iScreenOrigin.iY+SKY_DISPLAY_H>height)
-            User::Leave(KErrNotSupported);
+            {DisplayLog(report);User::Leave(KErrNotSupported);}
         iScreenStride=pitch>>1;iScreenBase=(Pixel*)first;
     }
-    void Present(){
+    TBool CanRenderScreen()const{
+        if(iRenderer->HalfResolution()||iMenu.Visible()||iMapError||!iScreenBase||
+           !iDsaReady||iDsaSuspended||!IsFocused())return EFalse;
+        const RRegion* region=iDsa->DrawingRegion();
+        if(!region||region->CheckError()||region->Count()!=1)return EFalse;
+        TRect full(iScreenOrigin,TSize(SKY_DISPLAY_W,SKY_DISPLAY_H));
+        return region->RectangleList()[0]==full;
+    }
+    void Present(TBool directFrame=EFalse){
         if(iDsaSuspended||!iDsaReady)return;
         if(iMapError){PaintDisplayDiagnostic(*iDsa->Gc());iDsa->ScreenDevice()->Update(*iDsa->DrawingRegion());return;}
         if(!iScreenBase)return;
@@ -122,7 +134,7 @@ public:
             if(menu)SkyPresentRect(source,sourceStride,screen,iScreenStride,
                                   r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
             else{
-                SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,iRenderer->HalfResolution());
+                if(!directFrame)SkyPresentFlightRect(source,sourceStride,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY,iRenderer->HalfResolution());
                 SkyPaintHudRect(iHud,screen,iScreenStride,r.iTl.iX,r.iTl.iY,r.iBr.iX,r.iBr.iY);
             }
         }
@@ -131,9 +143,16 @@ public:
     }
     void BuildMenu(){
         if(!iMenuBitmap||!iMenu.Visible())return;
+        // A direct frame has no RAM color copy. Re-render a snapshot on demand,
+        // including the pause entered by focus loss / DSA AbortNow + Restart.
+        // This is ordinary RAM rendering: never read back the LCD framebuffer.
+        if(iMenu.mode==MenuState::Paused&&!iSnapshotCurrent){
+            iRenderer->Render(iPixels,iRenderer->Width(),iFlight.state);iSnapshotCurrent=ETrue;
+        }
         iMenuBitmap->LockHeap(ETrue);
         SkyDrawMenu((Pixel*)iMenuBitmap->DataAddress(),CFbsBitmap::ScanLineLength(SKY_DISPLAY_W,EColor64K)/2,iMenu,iPixels,iRenderer->Width());
         iMenuBitmap->UnlockHeap(ETrue);
+        iMenuDirty=EFalse;
     }
     void ApplyMenu(MenuState::Action action){
         if(action==MenuState::Exit){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return;}
@@ -146,7 +165,7 @@ public:
         if(iMenu.Visible()){ApplyMenu(iMenu.Select());return;}
         iMenu.Pause();iPaused=ETrue;iKeys=0;iAccum=0;iFpsCounter.Reset();UpdateRepeatPolicy();BuildMenu();Present();
     }
-    void ResetFlight(){iRenderer->SetHalfResolution(iMenu.halfResolution);FlightModel_Reset(&iFlight);iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
+    void ResetFlight(){iRenderer->SetHalfResolution(iMenu.halfResolution);FlightModel_Reset(&iFlight);iSnapshotCurrent=EFalse;iMenu.mode=MenuState::Flight;iMenu.selection=0;iKeys=0;iAccum=0;iPaused=EFalse;iLast.UniversalTime();iFpsCounter.Reset();UpdateRepeatPolicy();}
     TBool ContinuousFrames()const{return !iMapError&&!iPaused&&iDsaReady&&!iDsaSuspended&&IsFocused();}
     TInt Frame(){
         // DSA AbortNow defers repeat restoration here: no WS calls in abort.
@@ -158,6 +177,7 @@ public:
         // Exit can destroy this view: return immediately after requesting it.
         if(buttons.pressed&FlightButtons::Exit){iEikonEnv->EikAppUi()->HandleCommandL(EEikCmdExit);return 1;}
         if(iMapError)return 1;
+        if(iMenuDirty&&iMenu.Visible()){BuildMenu();Present();}
         if(buttons.pressed&FlightButtons::Select){ToggleMenu();return 1;}
         if(iMenu.Visible()){
             if(buttons.pressed&(FlightButtons::PitchUp|FlightButtons::MenuUp))iMenu.Move(-1);
@@ -180,14 +200,14 @@ public:
             in.yaw=((iKeys&64)?Fix::Raw(65536):0)-((iKeys&128)?Fix::Raw(65536):0);
             while(iAccum>=20000){FlightModel_Step(&iFlight,&in,Fix::Raw(1311));iAccum-=20000;}
         }
-        TTime renderStart;renderStart.UniversalTime();
-        iRenderer->Render(iPixels,iRenderer->Width(),iFlight.state);
-        TTime renderEnd;renderEnd.UniversalTime();
-        iRenderMs=renderEnd.MicroSecondsFrom(renderStart).Int64().GetTInt()/1000;
-        TTime presentStart;presentStart.UniversalTime();
-        Present();
-        TTime presentEnd;presentEnd.UniversalTime();
-        iPresentMs=presentEnd.MicroSecondsFrom(presentStart).Int64().GetTInt()/1000;
+        const TBool directFrame=CanRenderScreen();
+        if(directFrame){
+            Pixel* screen=iScreenBase+iScreenOrigin.iY*iScreenStride+iScreenOrigin.iX;
+            iRenderer->Render(screen,iScreenStride,iFlight.state,true);iSnapshotCurrent=EFalse;
+        }else{
+            iRenderer->Render(iPixels,iRenderer->Width(),iFlight.state);iSnapshotCurrent=ETrue;
+        }
+        Present(directFrame);
         return 1;
     }
     TBool HandleGameKey(const TKeyEvent& key,TInt type){
@@ -213,7 +233,7 @@ public:
         }
         return ETrue;
     }
-    void FocusChanged(TDrawNow){if(!IsFocused()){iButtons.Clear();iKeys=0;iPaused=ETrue;iAccum=0;iFpsCounter.Reset();iMenu.Pause();}if(!iDsaSuspended)UpdateRepeatPolicy();}
+    void FocusChanged(TDrawNow){if(!IsFocused()){iButtons.Clear();iKeys=0;iPaused=ETrue;iAccum=0;iFpsCounter.Reset();iMenu.Pause();iMenuDirty=ETrue;}if(!iDsaSuspended)UpdateRepeatPolicy();}
     void Draw(const TRect&) const {
         // Window Server redraw events do not present game frames.
         // DSA Restart/Present owns all scene and menu drawing.
@@ -223,7 +243,7 @@ public:
         gc.SetPenStyle(CGraphicsContext::ENullPen);gc.DrawRect(TRect(0,0,176,208));
         gc.SetPenStyle(CGraphicsContext::ESolidPen);gc.SetPenColor(TRgb(230,240,255));
         gc.UseFont(iEikonEnv->LegendFont());
-        gc.DrawText(_L("FRAMEBUFFER 0.1.42"),TPoint(2,13));
+        gc.DrawText(_L("FRAMEBUFFER 0.1.43"),TPoint(2,13));
         TBuf<64> text;text.Format(_L("Map error %d"),iMapError);gc.DrawText(text,TPoint(2,26));
         const TText* labels[9]={_S("MODE"),_S("ADDR"),_S("OFFSET"),_S("PITCH"),_S("BPP"),
             _S("RGB"),_S("LAND"),_S("WIDTH"),_S("HEIGHT")};
@@ -243,18 +263,18 @@ public:
 
 private:
     HudState iHud;
-    CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;
+    CFbsBitmap* iMenuBitmap;MenuState iMenu;Soft3D* iRenderer;Pixel* iPixels;TBool iSnapshotCurrent,iMenuDirty;
     CDirectScreenAccess* iDsa;TBool iDsaReady;TBool iDsaSuspended;
     Pixel* iScreenBase;TInt iScreenStride;TPoint iScreenOrigin;
     TInt iMapError,iDisplayValues[9],iDisplayErrors[9];TScreenInfoV01 iLegacyScreen;
     KeyRepeatGuard<RWsSession,TTimeIntervalMicroSeconds32> iRepeatGuard;FrameRateCounter iFpsCounter;FlightButtons iButtons;
-    FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TInt iRenderMs;TInt iPresentMs;TTime iLast;
+    FlightModel iFlight;TInt iKeys;TBool iPaused;TInt iAccum;TInt iFps;TTime iLast;
 };
 // Own request pump, as in the N-Gage engine: WS input is not a CONE AO.
 // The bootstrap idle callback only enters the loop once; it never ticks frames.
 class CFlightUi:public CAknAppUi {
 public:
-    CFlightUi():iView(0),iStarter(0),iExitCallback(0),iQuit(EFalse),iOwnWs(EFalse),iAuxReady(EFalse){}
+    CFlightUi():iView(0),iStarter(0),iExitCallback(0),iQuit(EFalse),iOwnWs(EFalse){}
     void ConstructL(){
         BaseConstructL();SetKeyBlockMode(ENoKeyBlock);
         iView=new(ELeave)CFlightView;iView->ConstructL();
@@ -297,14 +317,14 @@ public:
     void Wait(){
         // Consume completed request signals without blocking an active flight.
         // Match the EKA1 pump pattern: RequestCount -> WaitForAnyRequest.
-        RThread thread;
-        TInt drained=0;
-        while(drained<64&&thread.RequestCount()>0){User::WaitForAnyRequest();++drained;}
-        if(!drained&&!iView->ContinuousFrames()&&!EventReady()&&!iAuxReady)
-            User::WaitForAnyRequest();
+        WaitGameRequests(*this,iAux);
     }
+    TInt RequestCount()const{RThread thread;return thread.RequestCount();}
+    void WaitForAnyRequest(){User::WaitForAnyRequest();}
+    TBool ContinuousFrames()const{return iView->ContinuousFrames();}
     TBool EventReady()const{return iEventStatus!=KRequestPending;}
     void ReadEventL(){
+        iAux.Observe(true);
         User::LeaveIfError(iEventStatus.Int());
         TWsEvent event;iEikonEnv->WsSession().GetEvent(event);
         // Re-arm immediately, before dispatching callbacks that may leave.
@@ -318,15 +338,12 @@ public:
         CAknAppUi::HandleWsEventL(event,reinterpret_cast<CCoeControl*>(event.Handle()));
     }
     void DispatchReadyL(){
+        DispatchGameReadyL(*this,iAux);
+    }
+    TBool RunAuxRequestL(){
         TInt error=KErrNone;
-        // The N-Gage loop also services scheduler requests at priority -25.
-        // Bound each batch so a busy auxiliary AO cannot starve the frame.
-        iAuxReady=EFalse;
-        for(TInt n=0;n<32&&!iQuit;++n){
-            TBool ran=CActiveScheduler::RunIfReady(error,-25);
-            User::LeaveIfError(error);if(!ran)break;
-            if(n==31)iAuxReady=ETrue;
-        }
+        TBool ran=CActiveScheduler::RunIfReady(error,-25);
+        User::LeaveIfError(error);return ran;
     }
     TBool Quitting()const{return iQuit;}
     // Benchmark mode: no frame timer or target-FPS cap. Frame handles pause,
@@ -343,7 +360,7 @@ public:
 private:
     CFlightView* iView;CIdle* iStarter;CAsyncCallBack* iExitCallback;
     TRequestStatus iEventStatus;
-    TBool iQuit,iOwnWs,iAuxReady;
+    TBool iQuit,iOwnWs;AuxDispatchGate iAux;
 };
 class CFlightDocument:public CAknDocument {
 public:CFlightDocument(CEikApplication& a):CAknDocument(a){}

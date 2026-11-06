@@ -1,4 +1,5 @@
 #include "soft3d.h"
+#include "hud.h"
 #include "world/terrain.h"
 #include "fixed.h"
 #include "reciprocal.h"
@@ -76,21 +77,34 @@ static inline Vec Mul(const Vec& a,Fix scale){Vec v;v.x=RawMul(a.x,scale.raw);v.
 static inline Fix Dot(const Vec& a,const Vec& b){return Fix::Raw(RawAdd(RawAdd(RawMul(a.x,b.x),RawMul(a.y,b.y)),RawMul(a.z,b.z)));}
 static inline Vec Cross(const Vec& a,const Vec& b){Vec v;v.x=RawSub(RawMul(a.y,b.z),RawMul(a.z,b.y));v.y=RawSub(RawMul(a.z,b.x),RawMul(a.x,b.z));v.z=RawSub(RawMul(a.x,b.y),RawMul(a.y,b.x));return v;}
 static Pixel RGB(int r,int g,int b) { return (Pixel)(((r>>3)<<11)|((g>>2)<<5)|(b>>3)); }
-static void ClearSky(Pixel* destination,int stride,int width=SKY_W,int height=SKY_H){
+static void ClearSkyRun(Pixel* row,int count,Pixel sky,unsigned packed){
+    if(count&&((size_t)row&2)){*row++=sky;--count;}
+    while(count>=8){
+        WritePair(row,packed);WritePair(row+2,packed);
+        WritePair(row+4,packed);WritePair(row+6,packed);
+        row+=8;count-=8;
+    }
+    while(count>=2){WritePair(row,packed);row+=2;count-=2;}
+    if(count)*row=sky;
+}
+static void ClearSky(Pixel* destination,int stride,int width=SKY_W,int height=SKY_H,bool screenHud=false){
     const Pixel sky=RGB(90,155,205);
     const unsigned packed=(unsigned)sky|((unsigned)sky<<16);
     Pixel* row=destination;
     for(int y=0;y<height;++y,row+=stride){
-        // Check per row so odd strides and halfword-aligned buffers remain valid.
-        if(((size_t)row&3)==0){
-            for(int x=0;x<width;x+=2)WritePair(row+x,packed);
-        }else{
-            for(int x=0;x<width;++x)row[x]=sky;
-        }
+        if(screenHud&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM){
+            ClearSkyRun(row,SKY_HUD_LEFT,sky,packed);
+            ClearSkyRun(row+SKY_HUD_RIGHT,width-SKY_HUD_RIGHT,sky,packed);
+        }else ClearSkyRun(row,width,sky,packed);
     }
 }
-Soft3D::Soft3D():terrainX(0x7fffffff),terrainZ(0x7fffffff),halfResolution(false),width(SKY_W),height(SKY_H),target(0),pitch(SKY_W),depthBias(0) {}
-Vec Soft3D::View(const Vec& p) const { Vec relative=Sub(p,eye); return V(Dot(relative,right),Dot(relative,up),Dot(relative,forward)); }
+Soft3D::Soft3D():terrainX(0x7fffffff),terrainZ(0x7fffffff),halfResolution(false),width(SKY_W),height(SKY_H),target(0),pitch(SKY_W),depthBias(0),screenHud(false) {}
+Vec Soft3D::View(const Vec& p) const {
+    Vec r=Sub(p,eye),v;
+    // Render always constructs right.y=0; adding its zero product is exact.
+    v.x=RawAdd(RawMul(r.x,right.x),RawMul(r.z,right.z));
+    v.y=Dot(r,up).raw;v.z=Dot(r,forward).raw;return v;
+}
 /* Near and side planes keep perspective divisions bounded, including when
    terrain crosses the eye. Focal length 125; screen centre (88,104). */
 static inline Fix Distance(const Vec& p,int plane) {
@@ -151,11 +165,23 @@ static inline int ReciprocalDivide(Wide numerator,int denominator,UWide inverse)
     unsigned inv=(unsigned)inverse;
     UWide high=(((UWide)(unsigned)magnitude*inv)>>32)+(UWide)(unsigned)(magnitude>>32)*inv;
     unsigned q=(unsigned)(high>>8);
-    UWide remainder=magnitude-(UWide)q*(unsigned)denominator;
-    if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
-    if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
-    if(remainder>=(unsigned)denominator){++q;remainder-=(unsigned)denominator;}
-    if(remainder>=(unsigned)denominator)++q;
+    const unsigned denom=(unsigned)denominator;
+    // floor(2^40/d) loses <4 quotient units for magnitude<2^42.
+    // Hence 0<=remainder<5*d. At d<=floor(UINT_MAX/5), its low word
+    // is the complete remainder, even if the numerator/product are wider.
+    if(denom<=858993459u){
+        unsigned remainder=(unsigned)magnitude-q*denom;
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom)++q;
+    }else{
+        UWide remainder=magnitude-(UWide)q*denom;
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom){++q;remainder-=denom;}
+        if(remainder>=denom)++q;
+    }
     return negative?-(int)q:(int)q;
 }
 #ifdef SKY_TEST_PROJECT_COUNTS
@@ -181,6 +207,9 @@ void Soft3D::DrawCachedTriangle(const Vec* view,const Screen* screen,const unsig
 }
 unsigned Soft3D::Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color){
     Vec view[4];view[0]=View(a);view[1]=View(b);view[2]=View(c);view[3]=View(d);
+    return ViewQuad(view,color);
+}
+unsigned Soft3D::ViewQuad(const Vec* view,Pixel color){
     unsigned c0=Outcode(view[0]),c1=Outcode(view[1]),c2=Outcode(view[2]),c3=Outcode(view[3]);
     unsigned reject=c0&c1&c2&c3;
     if(reject)return reject;
@@ -317,13 +346,25 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
         int first=0,last=maxx-minx;
         for(int edge=0;edge<3;++edge){
             int w=row[edge],step=dx[edge];
-            if(step>0&&w<0){int bound=(int)EdgeFloor((unsigned)(-(w+1)),edgeDivisor[edge],edgeInverse[edge])+1;if(bound>first)first=bound;}
-            else if(step<0){if(w<0){last=-1;break;}int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);if(bound<last)last=bound;}
-            else if(step==0&&w<0){last=-1;break;}
+            if(w<0){
+                if(step<=0){last=-1;break;}
+                int bound=(int)EdgeFloor((unsigned)(-(w+1)),edgeDivisor[edge],edgeInverse[edge])+1;
+                if(bound>first)first=bound;
+            }else if(step<0){
+                int bound=(int)EdgeFloor((unsigned)w,edgeDivisor[edge],edgeInverse[edge]);
+                if(bound<last)last=bound;
+            }
         }
         if(first<=last){
             int start=minx+first;
-            DrawSpan(dstRow+start,zRow+start,last-first+1,rowz+dzx*first,dzx,color);
+            int end=minx+last;
+            if(screenHud&&y>=SKY_HUD_TOP&&y<SKY_HUD_BOTTOM){
+                // Never erase the cached opaque HUD in a direct-screen frame.
+                int leftEnd=end<SKY_HUD_LEFT?end:SKY_HUD_LEFT-1;
+                if(start<=leftEnd)DrawSpan(dstRow+start,zRow+start,leftEnd-start+1,rowz+dzx*first,dzx,color);
+                int rightStart=start>SKY_HUD_RIGHT?start:SKY_HUD_RIGHT;
+                if(rightStart<=end)DrawSpan(dstRow+rightStart,zRow+rightStart,end-rightStart+1,rowz+dzx*(rightStart-minx),dzx,color);
+            }else DrawSpan(dstRow+start,zRow+start,last-first+1,rowz+dzx*first,dzx,color);
         }
         dstRow+=pitch;zRow+=width;
 #endif
@@ -331,10 +372,11 @@ void Soft3D::RasterScreen(const Screen& a,const Screen& b,const Screen& c,Pixel 
         rowz+=dzy;
     }
 }
-void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
+void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s,bool protectHud) {
     target=pixels;pitch=stride;depthBias=0;
+    screenHud=protectHud&&!halfResolution;
     memset(depth,0,width*height*sizeof(Pixel));
-    ClearSky(target,pitch,width,height);
+    ClearSky(target,pitch,width,height,screenHud);
     Fix sy=(Fix)FxSin(s.yaw),cy=(Fix)FxCos(s.yaw);
     eye=V(s.x-sy*17,s.y+6,s.z+cy*17);
     // Chase offset is constant (29 horizontal, -5 vertical). Normalize offline.
@@ -351,10 +393,20 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
             terrain[tz*9+tx]=V(x,Terrain_GetHeight(x,z),z);
         }
     }
-    for(int vertex=0;vertex<81;++vertex){
-        terrainView[vertex]=View(terrain[vertex]);
-        terrainCodes[vertex]=(unsigned char)Outcode(terrainView[vertex]);
-        if(terrainCodes[vertex]==0)terrainScreen[vertex]=Project(terrainView[vertex],halfResolution);
+    Vec xProducts[9],zProducts[9];
+    for(int i=0;i<9;++i){
+        int x=RawSub(terrain[i].x,eye.x),z=RawSub(terrain[i*9].z,eye.z);
+        xProducts[i]=V(Fix::Raw(RawMul(x,right.x)),Fix::Raw(RawMul(x,up.x)),Fix::Raw(RawMul(x,forward.x)));
+        zProducts[i]=V(Fix::Raw(RawMul(z,right.z)),Fix::Raw(RawMul(z,up.z)),Fix::Raw(RawMul(z,forward.z)));
+    }
+    for(int tz=0;tz<9;++tz)for(int tx=0;tx<9;++tx){
+        int vertex=tz*9+tx,y=RawSub(terrain[vertex].y,eye.y);
+        Vec& v=terrainView[vertex];const Vec& x=xProducts[tx];const Vec& z=zProducts[tz];
+        v.x=RawAdd(x.x,z.x);
+        v.y=RawAdd(RawAdd(x.y,RawMul(y,up.y)),z.y);
+        v.z=RawAdd(RawAdd(x.z,RawMul(y,forward.y)),z.z);
+        terrainCodes[vertex]=(unsigned char)Outcode(v);
+        if(!terrainCodes[vertex])terrainScreen[vertex]=Project(v,halfResolution);
     }
     for(int iz=-4;iz<4;++iz)for(int ix=-4;ix<4;++ix){
         int base=(iz+4)*9+ix+4;
@@ -376,8 +428,21 @@ void Soft3D::Render(Pixel* pixels,int stride,const FlightState& s) {
     unsigned runwayReject=Quad(V(-15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),-300),V(15,Fix::Raw(3604),300),V(-15,Fix::Raw(3604),300),RGB(62,66,70));
     if(!runwayReject||!RunwayMarkingsOutside(runwayReject)){
         depthBias=4;
+        Vec xy[2];const int relativeY=RawSub(5243,eye.y);
+        for(int side=0;side<2;++side){
+            int x=RawSub(side?32768:-32768,eye.x);
+            xy[side].x=RawMul(x,right.x);
+            xy[side].y=RawAdd(RawMul(x,up.x),RawMul(relativeY,up.y));
+            xy[side].z=RawAdd(RawMul(x,forward.x),RawMul(relativeY,forward.y));
+        }
         for(int mark=-280;mark<300;mark+=40){
-            Quad(V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark),V(Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),V(-Fix::Raw(32768),Fix::Raw(5243),(Fix)mark+18),RGB(240,235,205));
+            Vec view[4];
+            for(int end=0;end<2;++end){
+                int z=RawSub(((Fix)(mark+(end?18:0))).raw,eye.z);
+                Vec zp;zp.x=RawMul(z,right.z);zp.y=RawMul(z,up.z);zp.z=RawMul(z,forward.z);
+                view[end?3:0]=Add(xy[0],zp);view[end?2:1]=Add(xy[1],zp);
+            }
+            ViewQuad(view,RGB(240,235,205));
         }
     }
     depthBias=0;

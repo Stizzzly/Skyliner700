@@ -21,7 +21,45 @@ struct PumpHost {
     bool FrameReady(){return frame;}
     void DrawFrameL(){order=order*10+3;frame=false;}
 };
+struct CompletionHost {
+    AuxDispatchGate aux;
+    int signals,objects,walks,runs,blocking,wakeObjects;
+    bool flight,event,quit;
+    CompletionHost():signals(0),objects(0),walks(0),runs(0),blocking(0),wakeObjects(0),flight(true),event(false),quit(false){}
+    int RequestCount()const{return signals;}
+    void WaitForAnyRequest(){if(signals)--signals;else{++blocking;objects+=wakeObjects;}}
+    bool EventReady()const{return event;}
+    bool ContinuousFrames()const{return flight;}
+    bool Quitting()const{return quit;}
+    bool RunAuxRequestL(){++walks;if(!objects)return false;--objects;++runs;return true;}
+    void Tick(){WaitGameRequests(*this,aux);DispatchGameReadyL(*this,aux);}
+};
+static void CheckCompletionProtocol(){
+    CompletionHost h;h.Tick();int initial=h.walks;
+    for(int i=0;i<1000;++i)h.Tick();
+    Check(h.walks==initial&&!h.blocking,"quiet flight neither traverses AOs nor sleeps");
+    h.signals=h.objects=100;
+    h.Tick();Check(h.runs==32&&h.signals==36,"completion and AO batches are independently bounded");
+    h.Tick();h.Tick();h.Tick();
+    Check(h.runs==100&&!h.objects&&!h.signals,"ready AOs survive signals drained in earlier frames");
+    int walks=h.walks;h.Tick();Check(h.walks==walks,"exhausted batch stops traversal");
+    h.flight=false;h.wakeObjects=3;h.Tick();
+    Check(h.blocking==1&&h.runs==103,"blocking wait preserves consumed wake for AO dispatch");
+    h.flight=true;h.wakeObjects=0;
+    WaitGameRequests(h,h.aux);++h.signals;++h.objects;
+    DispatchGameReadyL(h,h.aux);
+    Check(h.objects==1,"late non-WS completion stays queued");h.Tick();
+    Check(!h.objects&&h.runs==104,"next wait dispatches late completion without losing its signal");
+    WaitGameRequests(h,h.aux);h.event=true;h.objects=2;
+    DispatchGameReadyL(h,h.aux);h.event=false;
+    Check(!h.objects&&h.runs==106,"late ready WS event also enables AO service");
+    h.aux.Observe(true);h.quit=true;h.objects=1;walks=h.walks;
+    DispatchGameReadyL(h,h.aux);
+    Check(h.walks==walks&&h.objects==1,"exit does not start more auxiliary callbacks");
+    puts("PASS: shared EKA1 pump protocol: quiet flight, bounded bursts, consumed blocking wake, late completions, WS wake and exit.");
+}
 int main(){
+    CheckCompletionProtocol();
     PumpHost pump;pump.event=true;pump.frame=true;PumpGameRequestsL(pump);
     Check(pump.waits==1&&pump.order==123&&!pump.event&&!pump.frame,"owned pump handles input before auxiliary requests and frame");
     pump.order=0;PumpGameRequestsL(pump);Check(pump.order==2,"spurious completion never reads a pending event or timer");

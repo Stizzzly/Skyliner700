@@ -1,19 +1,32 @@
-Version 0.1.42: main-menu-only resolution selection
-Main RES row toggles 176x208 / 88x104 X2 via Select
-Pause has only Resume/Return Menu/Exit; no resolution action
-Default native; selection applies at flight start, retained within current launch
-Fixed max buffers, no reallocation; active color/Z strides packed to selected width
-Same FOV through focal multiplier 2000/1000
-Native and optimized clipped 2x paths both retain direct cached HUD
-160 resolution renders/switches: exact native af33ac27, half 86c26771
-Inactive rows/columns, stride and outer guards PASS
-Both-mode HUD presentation/clip/alignment tests PASS
-Main and pause actions/rendering guards PASS; pause cannot change resolution
-Random native and half projections vs division reference PASS
-Full math/physics/input/framebuffer/clipping/quad/runway regressions PASS
-Seven SDK ARM objects, no FP/global constructors; native audit PASS
-Legacy SIS APP/RSC/AIF structure PASS
-Main menu and pause backgrounds visually checked in both modes
-Prior device results: 0.1.41 native 35 ground FPS; 0.1.40 half 60 ground FPS
-0.1.42 device mode switching and FPS not yet tested
-SHA256 SIS: b33031a656a5b0e492f5803ec83cb0db404b8ab78902b0f84fbeb430a71a244f
+Version 0.1.43: renderer and Symbian optimization backlog
+Reciprocal remainder: 32-bit for d<=858993459, exact wide fallback above
+Threshold and numerator-limit tests PASS; two million random projections PASS
+Terrain X/Z and runway-marking X/Y caches preserve saturation/order
+Both ordinary render modes preserve previous checksums: native af33ac27, half 86c26771
+160 mode-switch renders and stride/inactive-region guards PASS
+160 direct-screen/fallback/snapshot cases PASS: all pixels outside HUD exact
+Opaque HUD, odd/even stride, halfword parity and outer guards preserved
+Pause RAM snapshot after direct frame matches full normal frame
+Four-pair sky fill with alignment and tail handling; native packed stores audited
+Original 0.1.7 renderer comparison, scalar/paired spans and coverage oracle PASS
+12000 clipping cases, 1000 quads, 10000 runway poses PASS
+HUD/menu/framebuffer/input/physics/terrain regressions PASS
+Shared Wait/Dispatch protocol: quiet flight, 100-completion bounded burst,
+consumed blocking wake, late AO/WS completion, no lost batch, exit PASS
+Ordinary Frame: one clock; unused render/present profiling fields removed
+Native direct render only for focused valid DSA with one full-screen region
+Partial regions and X2 retain RAM + clipped presentation
+DSA AbortNow clears raw address; Restart/focus rebuild pause snapshot/menu
+DisplayLog only on HAL/validation error; no success-path file write
+Seven ARM32 objects: no floating-point helpers or global constructors
+Project and RasterScreen: no division/modulo helpers
+PHYSICS/FIXED/TERRAIN: no division/modulo imports
+SOFT3D still imports __divdi3 for clipping intersections (unchanged)
+Actual ARM RawAdd/Sub: 20162 boundary/random results PASS
+Actual ARM RawMul: 30289 full-range/boundary products PASS
+Actual ARM span code: 10000 kernel/wrapper ABI/guards/mask cases PASS
+Legacy SIS compressed APP/RSC/AIF + application UIDs PASS
+Prior phone baselines: 0.1.41 native 35 ground FPS; 0.1.40 X2 60 ground FPS
+0.1.43 actual-phone FPS, notifications, focus/DSA restart and exit PENDING
+The host tests do not emulate WSERV/DSA or ARM920T memory/cache timing.
+SHA256 SIS: b5385fae487b41d9e04274b881487fb931e922f58732a48e0285367e54f61dbe

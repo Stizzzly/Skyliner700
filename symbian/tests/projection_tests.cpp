@@ -88,6 +88,14 @@ static void CheckRawArithmetic(){
     puts("PASS: 1000000 exact 32-bit saturating add/sub pairs and signed boundary cases.");
 }
 int main(){
+    const int remainderDepths[]={131072,858993458,858993459,858993460,1073741823,1073741824,2147483646,2147483647};
+    const Wide remainderNumerators[]={0,1,-1,4294967295LL,4294967296LL,4294967296000LL,-4294967296000LL,(1LL<<42)-1,-((1LL<<42)-1)};
+    for(unsigned i=0;i<sizeof(remainderDepths)/sizeof(remainderDepths[0]);++i)
+        for(unsigned j=0;j<sizeof(remainderNumerators)/sizeof(remainderNumerators[0]);++j){
+            int d=remainderDepths[i];Wide n=remainderNumerators[j];
+            if(ReciprocalDivide(n,d,DepthInverse(d))!=n/d){fprintf(stderr,"Remainder fast/wide boundary mismatch\n");return 1;}
+        }
+    puts("PASS: reciprocal remainder fast/wide threshold and full supported numerator limits.");
     CheckRawArithmetic();
     CheckSkyFill();
     CheckSpanPairs();

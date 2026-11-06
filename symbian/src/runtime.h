@@ -1,5 +1,37 @@
 #ifndef SKY_RUNTIME_H
 #define SKY_RUNTIME_H
+// Preserve consumed semaphore signals until the auxiliary AO batch runs.
+// A full batch remains pending even if all its semaphore signals were drained.
+class AuxDispatchGate {
+    bool pending;
+public:
+    AuxDispatchGate():pending(true){}
+    void Observe(bool signalled){if(signalled)pending=true;}
+    bool Ready()const{return pending;}
+    void Begin(){pending=false;}
+    void BatchLimit(){pending=true;}
+};
+// Host supplies the OS calls, so the real wake/batch protocol can also be
+// exercised with queued completions and adversarial arrival times on desktop.
+template<class Host> void WaitGameRequests(Host& host,AuxDispatchGate& aux){
+    int drained=0;
+    while(drained<64&&host.RequestCount()>0){host.WaitForAnyRequest();++drained;}
+    aux.Observe(drained>0||host.EventReady());
+    if(!drained&&!host.ContinuousFrames()&&!host.EventReady()&&!aux.Ready()){
+        host.WaitForAnyRequest();aux.Observe(true);
+    }
+}
+template<class Host> void DispatchGameReadyL(Host& host,AuxDispatchGate& aux){
+    // A late non-WS completion retains its semaphore signal for the next Wait.
+    // Avoid a second RequestCount system call on every ordinary flight frame.
+    aux.Observe(host.EventReady());
+    if(!aux.Ready())return;
+    aux.Begin();
+    for(int n=0;n<32&&!host.Quitting();++n){
+        if(!host.RunAuxRequestL())break;
+        if(n==31)aux.BatchLimit();
+    }
+}
 // Wait blocks only in menus/background. Drain a bounded input batch before
 // auxiliary AOs and the next uncapped frame; no post-frame sleep.
 template<class Host> void PumpGameRequestsL(Host& host){

@@ -51,7 +51,7 @@ for name in ('PHYSICS.o', 'FIXED.o', 'TERRAIN.o'):
     assert not re.search(r'\b__(?:u?div|u?mod)\w*', symbols), 'Division/modulo helper remains in ' + name
 print('PASS: PHYSICS.o, FIXED.o and TERRAIN.o import no integer division/modulo helpers.')
 
-render = re.search(r'<Render__6Soft3DPUsiRC11FlightState>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
+render = re.search(r'<Render__6Soft3DPUsiRC11FlightStateb>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)', assembly, re.M | re.S)
 assert render, 'Missing native Render function'
 assert not re.search(r'ARM_26\s+__(?:u?div|u?mod)', render.group(1)), 'Division/modulo helper remains in grid setup or Render'
 print('PASS: native Render/grid setup has no division/modulo helper calls.')
@@ -89,7 +89,7 @@ assert owned.group(1).index('ARM_26\tCancel__7CActive') < owned.group(1).index('
 print('PASS: native owned WS pump, CONE cancel before EventReady, direct GetEvent/WaitForAnyRequest/RunIfReady, no CPeriodic.')
 
 # Normal flight presentation uses pixels/cache, never the GC font/text path.
-present=re.search(r'<Present__11CFlightView>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)',ui_asm,re.M|re.S)
+present=re.search(r'<Present__11CFlightViewi>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)',ui_asm,re.M|re.S)
 assert present, 'Missing native Present'
 assert not re.search(r'ARM_26\s+\S*(?:UseFont|DiscardFont|DrawText|Format)',present.group(1)), 'GC font/text formatting in normal Present'
 assert 'SkyPaintHudRect__FRC8HudStatePUsiiiii' in ui, 'Missing direct clipped HUD'
@@ -98,3 +98,13 @@ assert 'PaintHud__' not in ui, 'Legacy GC HUD remains'
 hud_symbols=subprocess.check_output([str(nm),'-u',str(objects/'HUD.o')],text=True,errors='replace')
 assert not re.search(r'UseFont|DiscardFont|DrawText|Format|RWsSession',hud_symbols), 'HUD depends on GC/WS formatting'
 print('PASS: normal Present uses cached clipped pixel HUD, with no direct GC font/text/Format calls.')
+
+source=(Path(__file__).resolve().parents[1]/'src/symbian.cpp').read_text(encoding='utf-8')
+frame=source.split('TInt Frame(){',1)[1].split('TBool HandleGameKey',1)[0]
+assert frame.count('.UniversalTime()')==1, 'Unused per-frame profiling clocks returned'
+assert 'iRenderMs' not in source and 'iPresentMs' not in source, 'Unused profiling fields returned'
+assert 'CanRenderScreen()' in frame and 'Present(directFrame)' in frame, 'Missing guarded direct-screen path'
+assert 'Render(screen,iScreenStride,iFlight.state,true)' in frame, 'Native direct rendering not enabled'
+clear=re.search(r'<ClearSkyRun__FPUsiUsUi>:\n(.*?)(?=^[0-9a-f]+ <[^.][^>]*>:\n|\Z)',assembly,re.M|re.S)
+assert clear and len(re.findall(r'\bstr\s',clear.group(1)))>=4, 'Missing four packed sky stores'
+print('PASS: one ordinary Frame clock, no unused profiling fields; guarded direct render and four packed sky stores.')

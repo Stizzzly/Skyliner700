@@ -13,7 +13,7 @@ public:
     int Width()const{return width;}
     int Height()const{return height;}
     bool HalfResolution()const{return halfResolution;}
-    void Render(Pixel* pixels, int stride, const FlightState& state);
+    void Render(Pixel* pixels, int stride, const FlightState& state,bool screenHud=false);
     void Triangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
 private:
     Pixel depth[SKY_W*SKY_H];
@@ -26,9 +26,11 @@ private:
     Pixel* target;
     int pitch;
     int depthBias;
+    bool screenHud;
     Vec eye,right,up,forward;
     Vec View(const Vec& p) const;
     unsigned Quad(const Vec& a,const Vec& b,const Vec& c,const Vec& d,Pixel color);
+    unsigned ViewQuad(const Vec* view,Pixel color);
     unsigned RunwayMarkingsOutside(unsigned mask) const;
     void DrawCachedTriangle(const Vec* view,const Screen* screen,const unsigned char* codes,int a,int b,int c,Pixel color);
     void ClipTriangle(const Vec& a,const Vec& b,const Vec& c,Pixel color);
